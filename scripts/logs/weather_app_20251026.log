@@ -1,0 +1,57 @@
+2025-10-26 18:50:59,663 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.17:5000
+2025-10-26 18:50:59,663 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-10-26 18:50:59,664 - werkzeug - INFO -  * Restarting with stat
+2025-10-26 18:51:00,573 - werkzeug - WARNING -  * Debugger is active!
+2025-10-26 18:51:00,581 - werkzeug - INFO -  * Debugger PIN: 910-957-873
+2025-10-26 18:52:00,441 - werkzeug - INFO - 127.0.0.1 - - [26/Oct/2025 18:52:00] "POST /predict HTTP/1.1" 200 -
+2025-10-26 19:03:00,232 - werkzeug - INFO -  * Detected change in '/home/zj/Workspace/hydromet_weather_app/backend/model/notification_mapping.py', reloading
+2025-10-26 19:03:00,510 - werkzeug - INFO -  * Restarting with stat
+2025-10-26 19:03:02,593 - werkzeug - WARNING -  * Debugger is active!
+2025-10-26 19:03:02,598 - werkzeug - INFO -  * Debugger PIN: 910-957-873
+2025-10-26 19:03:10,731 - werkzeug - INFO -  * Detected change in '/home/zj/Workspace/hydromet_weather_app/backend/model/notification_util.py', reloading
+2025-10-26 19:03:10,995 - werkzeug - INFO -  * Restarting with stat
+2025-10-26 19:04:20,678 - werkzeug - INFO -  * Restarting with stat
+2025-10-26 19:30:44,142 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.17:5000
+2025-10-26 19:30:44,142 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-10-26 19:30:44,142 - werkzeug - INFO -  * Restarting with stat
+2025-10-26 19:30:45,537 - werkzeug - WARNING -  * Debugger is active!
+2025-10-26 19:30:45,540 - werkzeug - INFO -  * Debugger PIN: 910-957-873
+2025-10-26 19:30:48,038 - werkzeug - INFO - 127.0.0.1 - - [26/Oct/2025 19:30:48] "[35m[1mPOST /predict HTTP/1.1[0m" 500 -
+2025-10-26 19:30:50,918 - werkzeug - INFO - 127.0.0.1 - - [26/Oct/2025 19:30:50] "[35m[1mPOST /predict HTTP/1.1[0m" 500 -
+2025-10-26 19:30:57,730 - werkzeug - INFO -  * Detected change in '/home/zj/Workspace/hydromet_weather_app/backend/model/notification_mapping.py', reloading
+2025-10-26 19:30:58,028 - werkzeug - INFO -  * Restarting with stat
+2025-10-26 19:30:59,425 - werkzeug - WARNING -  * Debugger is active!
+2025-10-26 19:30:59,428 - werkzeug - INFO -  * Debugger PIN: 910-957-873
+2025-10-26 19:31:01,225 - werkzeug - INFO - 127.0.0.1 - - [26/Oct/2025 19:31:01] "POST /predict HTTP/1.1" 200 -
+2025-10-26 19:36:49,718 - werkzeug - INFO -  * Detected change in '/home/zj/Workspace/hydromet_weather_app/backend/model/notification_mapping.py', reloading
+2025-10-26 19:36:49,965 - werkzeug - INFO -  * Restarting with stat
+2025-10-26 19:36:51,305 - werkzeug - WARNING -  * Debugger is active!
+2025-10-26 19:36:51,308 - werkzeug - INFO -  * Debugger PIN: 910-957-873
+2025-10-26 19:37:30,804 - werkzeug - INFO -  * Detected change in '/home/zj/Workspace/hydromet_weather_app/backend/model/notification_util.py', reloading
+2025-10-26 19:37:31,108 - werkzeug - INFO -  * Restarting with stat
+2025-10-26 19:37:33,624 - werkzeug - INFO -  * Restarting with stat
+2025-10-26 19:37:44,471 - werkzeug - INFO -  * Restarting with stat
+2025-10-26 19:37:52,056 - werkzeug - INFO -  * Restarting with stat
+2025-10-26 22:21:23,459 - database - INFO - Database pool created: 2-10 connections
+2025-10-26 22:21:23,459 - __main__ - INFO - ======================================================================
+2025-10-26 22:21:23,459 - __main__ - INFO - Daily data collection: 2025-10-26 14:21:23 UTC
+2025-10-26 22:21:23,459 - __main__ - INFO - ======================================================================
+2025-10-26 22:21:23,459 - __main__ - INFO - Fetching 24h data: 2025-10-25 22:21 to 2025-10-26 22:21
+2025-10-26 22:21:24,799 - __main__ - INFO - Retrieved 96 observations
+2025-10-26 22:21:24,800 - __main__ - INFO - Processing 96 records
+2025-10-26 22:21:24,859 - database - INFO - ✅ Inserted 96 observations (attempted 96)
+2025-10-26 22:21:24,859 - __main__ - INFO - ✅ Inserted 96 new observations (attempted 96)
+2025-10-26 22:21:24,869 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-26 22:21:24,869 - __main__ - INFO - Database Statistics:
+2025-10-26 22:21:24,869 - __main__ - INFO -   Total observations: 530
+2025-10-26 22:21:24,869 - __main__ - INFO -   Latest record: 2025-10-26 22:15:00 UTC
+2025-10-26 22:21:24,870 - __main__ - INFO -   Data freshness: 0.1 hours ago
+2025-10-26 22:21:24,870 - __main__ - INFO -   Estimated days of data: 5.5 days
+2025-10-26 22:21:24,870 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-26 22:21:24,870 - database - INFO - Database pool closed

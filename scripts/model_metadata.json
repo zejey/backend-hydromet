@@ -1,0 +1,62 @@
+{
+  "feature_columns": [
+    "temperature",
+    "temp_min",
+    "temp_max",
+    "precipitation",
+    "wind_speed",
+    "pressure",
+    "humidity",
+    "temp_range",
+    "day_of_year",
+    "month",
+    "season",
+    "is_weekend",
+    "humidity_est",
+    "heat_index",
+    "precip_rolling_3",
+    "temp_rolling_3",
+    "wind_rolling_3"
+  ],
+  "accuracy": 0.8805460750853242,
+  "classification_report": {
+    "0": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 0.0
+    },
+    "1": {
+      "precision": 1.0,
+      "recall": 0.8805460750853242,
+      "f1-score": 0.9364791288566243,
+      "support": 293.0
+    },
+    "accuracy": 0.8805460750853242,
+    "macro avg": {
+      "precision": 0.5,
+      "recall": 0.4402730375426621,
+      "f1-score": 0.46823956442831216,
+      "support": 293.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 0.8805460750853242,
+      "f1-score": 0.9364791288566242,
+      "support": 293.0
+    }
+  },
+  "confusion_matrix": {
+    "0": {
+      "1": 35
+    },
+    "1": {
+      "1": 258
+    }
+  },
+  "cv_mean": 0.6150972519071243,
+  "cv_std": 0.2566641003304649,
+  "trained_at": "2025-10-25T21:09:39.954801",
+  "training_data_source": "Meteostat (NAIA Station)",
+  "training_samples": 762
+}

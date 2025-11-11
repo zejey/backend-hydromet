@@ -1,0 +1,123 @@
+2025-10-25 12:00:06,078 - database - INFO - Database pool created: 2-10 connections
+2025-10-25 12:00:06,078 - __main__ - INFO - ======================================================================
+2025-10-25 12:00:06,078 - __main__ - INFO - Daily data collection: 2025-10-25 04:00:06 UTC
+2025-10-25 12:00:06,078 - __main__ - INFO - ======================================================================
+2025-10-25 12:00:06,078 - __main__ - INFO - Fetching 24h data: 2025-10-24 12:00 to 2025-10-25 12:00
+2025-10-25 12:00:07,844 - __main__ - INFO - Retrieved 95 observations
+2025-10-25 12:00:07,846 - __main__ - INFO - Processing 95 records
+2025-10-25 12:00:07,899 - database - INFO - ✅ Inserted 62 observations (attempted 95)
+2025-10-25 12:00:07,899 - __main__ - INFO - ✅ Inserted 62 new observations (attempted 95)
+2025-10-25 12:00:07,903 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-25 12:00:07,903 - __main__ - INFO - Database Statistics:
+2025-10-25 12:00:07,903 - __main__ - INFO -   Total observations: 434
+2025-10-25 12:00:07,904 - __main__ - INFO -   Latest record: 2025-10-25 11:45:00 UTC
+2025-10-25 12:00:07,904 - __main__ - INFO -   Data freshness: 0.3 hours ago
+2025-10-25 12:00:07,904 - __main__ - INFO -   Estimated days of data: 4.5 days
+2025-10-25 12:00:07,904 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-25 12:00:07,905 - database - INFO - Database pool closed
+2025-10-25 12:00:30,070 - database - INFO - Database pool created: 2-10 connections
+2025-10-25 12:00:30,071 - __main__ - INFO - Exporting all data to training.csv
+2025-10-25 12:00:30,154 - database - INFO - ✅ Exported 434 rows to training.csv
+2025-10-25 12:00:30,154 - __main__ - INFO - ✅ Export complete
+2025-10-25 12:00:30,155 - database - INFO - Database pool closed
+2025-10-25 15:20:47,322 - __main__ - INFO - ======================================================================
+2025-10-25 15:20:47,323 - __main__ - INFO - 🚀 Starting Model Training: 2025-10-25 15:20:47
+2025-10-25 15:20:47,323 - __main__ - INFO - ======================================================================
+2025-10-25 15:20:47,323 - __main__ - INFO - CSV Path: export.csv
+2025-10-25 15:20:47,323 - __main__ - INFO - CSV Size: 0.04 MB
+2025-10-25 15:20:47,323 - __main__ - INFO - Training model from CSV...
+2025-10-25 15:20:47,810 - __main__ - INFO - ======================================================================
+2025-10-25 15:20:47,810 - __main__ - INFO - ✅ Model Training Complete!
+2025-10-25 15:20:47,810 - __main__ - INFO - ======================================================================
+2025-10-25 15:20:47,810 - __main__ - INFO - Accuracy: 0.9673
+2025-10-25 15:20:47,810 - __main__ - INFO - CV Mean Score: 0.8697 (+/- 0.0659)
+2025-10-25 15:20:47,810 - __main__ - INFO - Trained At: 2025-10-25T15:20:47.809665
+2025-10-25 15:20:47,810 - __main__ - INFO - Features Used: 17
+2025-10-25 15:20:47,810 - __main__ - INFO - Feature Names: temperature, temp_min, temp_max, precipitation, wind_speed, pressure, humidity, temp_range, day_of_year, month...
+2025-10-25 15:20:47,810 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-25 15:20:47,810 - __main__ - INFO - Classification Report:
+2025-10-25 15:20:47,810 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-25 15:20:47,810 - __main__ - INFO - 0: P=1.0000 R=0.4444 F1=0.6154
+2025-10-25 15:20:47,810 - __main__ - INFO - 1: P=0.9664 R=1.0000 F1=0.9829
+2025-10-25 15:20:47,810 - __main__ - INFO - accuracy: 0.9673
+2025-10-25 15:20:47,810 - __main__ - INFO - macro avg: P=0.9832 R=0.7222 F1=0.7992
+2025-10-25 15:20:47,810 - __main__ - INFO - weighted avg: P=0.9684 R=0.9673 F1=0.9613
+2025-10-25 15:20:47,810 - __main__ - INFO - ======================================================================
+2025-10-25 15:20:47,810 - __main__ - INFO - Model saved to: model.pkl
+2025-10-25 15:20:47,810 - __main__ - INFO - Metadata saved to: model_metadata.json
+2025-10-25 15:20:47,810 - __main__ - INFO - ======================================================================
+2025-10-25 16:01:29,751 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.18:5000
+2025-10-25 16:01:29,751 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-10-25 16:01:29,755 - werkzeug - INFO -  * Restarting with stat
+2025-10-25 16:01:31,452 - werkzeug - WARNING -  * Debugger is active!
+2025-10-25 16:01:31,464 - werkzeug - INFO -  * Debugger PIN: 910-957-873
+2025-10-25 16:02:56,672 - werkzeug - INFO - 127.0.0.1 - - [25/Oct/2025 16:02:56] "POST /predict HTTP/1.1" 200 -
+2025-10-25 16:20:08,561 - werkzeug - INFO - 127.0.0.1 - - [25/Oct/2025 16:20:08] "[35m[1mPOST /predict HTTP/1.1[0m" 500 -
+2025-10-25 16:20:21,609 - werkzeug - INFO - 127.0.0.1 - - [25/Oct/2025 16:20:21] "[35m[1mPOST /predict HTTP/1.1[0m" 500 -
+2025-10-25 16:29:26,869 - werkzeug - INFO - 127.0.0.1 - - [25/Oct/2025 16:29:26] "POST /predict HTTP/1.1" 200 -
+2025-10-25 16:31:18,896 - werkzeug - INFO - 127.0.0.1 - - [25/Oct/2025 16:31:18] "POST /predict HTTP/1.1" 200 -
+2025-10-25 16:35:41,756 - __main__ - INFO - ======================================================================
+2025-10-25 16:35:41,756 - __main__ - INFO - 🚀 Starting Model Training: 2025-10-25 16:35:41
+2025-10-25 16:35:41,756 - __main__ - INFO - ======================================================================
+2025-10-25 16:35:41,756 - __main__ - INFO - CSV Path: export.csv
+2025-10-25 16:35:41,756 - __main__ - INFO - CSV Size: 0.04 MB
+2025-10-25 16:35:41,756 - __main__ - INFO - Training model from CSV...
+2025-10-25 16:35:42,222 - __main__ - INFO - ======================================================================
+2025-10-25 16:35:42,222 - __main__ - INFO - ✅ Model Training Complete!
+2025-10-25 16:35:42,222 - __main__ - INFO - ======================================================================
+2025-10-25 16:35:42,222 - __main__ - INFO - Accuracy: 0.9673
+2025-10-25 16:35:42,223 - __main__ - INFO - CV Mean Score: 0.8681 (+/- 0.0656)
+2025-10-25 16:35:42,223 - __main__ - INFO - Trained At: 2025-10-25T16:35:42.222426
+2025-10-25 16:35:42,223 - __main__ - INFO - Features Used: 17
+2025-10-25 16:35:42,223 - __main__ - INFO - Feature Names: temperature, temp_min, temp_max, precipitation, wind_speed, pressure, humidity, temp_range, day_of_year, month...
+2025-10-25 16:35:42,223 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-25 16:35:42,223 - __main__ - INFO - Classification Report:
+2025-10-25 16:35:42,223 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-25 16:35:42,223 - __main__ - INFO - 0: P=1.0000 R=0.4444 F1=0.6154
+2025-10-25 16:35:42,223 - __main__ - INFO - 1: P=0.9664 R=1.0000 F1=0.9829
+2025-10-25 16:35:42,223 - __main__ - INFO - accuracy: 0.9673
+2025-10-25 16:35:42,223 - __main__ - INFO - macro avg: P=0.9832 R=0.7222 F1=0.7992
+2025-10-25 16:35:42,223 - __main__ - INFO - weighted avg: P=0.9684 R=0.9673 F1=0.9613
+2025-10-25 16:35:42,223 - __main__ - INFO - ======================================================================
+2025-10-25 16:35:42,223 - __main__ - INFO - Model saved to: model.pkl
+2025-10-25 16:35:42,223 - __main__ - INFO - Metadata saved to: model_metadata.json
+2025-10-25 16:35:42,223 - __main__ - INFO - ======================================================================
+2025-10-25 21:09:38,896 - __main__ - INFO - ======================================================================
+2025-10-25 21:09:38,898 - __main__ - INFO - 🚀 Starting Model Training: 2025-10-25 21:09:38
+2025-10-25 21:09:38,898 - __main__ - INFO - ======================================================================
+2025-10-25 21:09:38,898 - __main__ - INFO - CSV Path: export.csv
+2025-10-25 21:09:38,898 - __main__ - INFO - CSV Size: 0.04 MB
+2025-10-25 21:09:38,898 - __main__ - INFO - Training model from CSV...
+2025-10-25 21:09:39,955 - __main__ - INFO - ======================================================================
+2025-10-25 21:09:39,955 - __main__ - INFO - ✅ Model Training Complete!
+2025-10-25 21:09:39,955 - __main__ - INFO - ======================================================================
+2025-10-25 21:09:39,955 - __main__ - INFO - Accuracy: 0.8805
+2025-10-25 21:09:39,955 - __main__ - INFO - CV Mean Score: 0.6151 (+/- 0.2567)
+2025-10-25 21:09:39,955 - __main__ - INFO - Trained At: 2025-10-25T21:09:39.954801
+2025-10-25 21:09:39,955 - __main__ - INFO - Features Used: 17
+2025-10-25 21:09:39,955 - __main__ - INFO - Feature Names: temperature, temp_min, temp_max, precipitation, wind_speed, pressure, humidity, temp_range, day_of_year, month...
+2025-10-25 21:09:39,955 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-25 21:09:39,955 - __main__ - INFO - Classification Report:
+2025-10-25 21:09:39,955 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-25 21:09:39,955 - __main__ - INFO - 0: P=0.0000 R=0.0000 F1=0.0000
+2025-10-25 21:09:39,955 - __main__ - INFO - 1: P=1.0000 R=0.8805 F1=0.9365
+2025-10-25 21:09:39,955 - __main__ - INFO - accuracy: 0.8805
+2025-10-25 21:09:39,955 - __main__ - INFO - macro avg: P=0.5000 R=0.4403 F1=0.4682
+2025-10-25 21:09:39,955 - __main__ - INFO - weighted avg: P=1.0000 R=0.8805 F1=0.9365
+2025-10-25 21:09:39,955 - __main__ - INFO - ======================================================================
+2025-10-25 21:09:39,955 - __main__ - INFO - Model saved to: model.pkl
+2025-10-25 21:09:39,955 - __main__ - INFO - Metadata saved to: model_metadata.json
+2025-10-25 21:09:39,956 - __main__ - INFO - ======================================================================
+2025-10-25 21:10:44,754 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.18:5000
+2025-10-25 21:10:44,754 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-10-25 21:10:44,755 - werkzeug - INFO -  * Restarting with stat
+2025-10-25 21:10:46,660 - werkzeug - WARNING -  * Debugger is active!
+2025-10-25 21:10:46,667 - werkzeug - INFO -  * Debugger PIN: 910-957-873
+2025-10-25 21:10:53,736 - werkzeug - INFO - 127.0.0.1 - - [25/Oct/2025 21:10:53] "POST /predict HTTP/1.1" 200 -
+2025-10-25 21:13:31,551 - werkzeug - INFO - 127.0.0.1 - - [25/Oct/2025 21:13:31] "POST /predict HTTP/1.1" 200 -
