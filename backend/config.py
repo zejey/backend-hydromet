@@ -14,11 +14,11 @@ class Config:
     # Railway provides: PGDATABASE, PGUSER, PGPASSWORD, PGHOST, PGPORT
     # Local provides: DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
     
-    DB_NAME = os.getenv("DB_NAME") or os.getenv("PGDATABASE")
-    DB_USER = os.getenv("DB_USER") or os.getenv("PGUSER", "postgres")
-    DB_PASSWORD = os.getenv("DB_PASSWORD") or os.getenv("PGPASSWORD")
-    DB_HOST = os.getenv("DB_HOST") or os.getenv("PGHOST", "localhost")
-    DB_PORT = os.getenv("DB_PORT") or os.getenv("PGPORT", "5432")
+    DB_NAME = os.getenv("PGDATABASE") or os.getenv("DB_NAME")
+    DB_USER = os.getenv("PGUSER") or os.getenv("DB_USER", "postgres")
+    DB_PASSWORD = os.getenv("PGPASSWORD") or os.getenv("DB_PASSWORD")
+    DB_HOST = os.getenv("PGHOST") or os.getenv("DB_HOST", "localhost")
+    DB_PORT = os.getenv("PGPORT") or os.getenv("DB_PORT", "5432")
     
     # iProg SMS API
     IPROG_API_TOKEN = os.getenv("IPROG_API_TOKEN")
@@ -60,4 +60,5 @@ class Config:
             return True
         
         print("✅ Configuration validated successfully")
+        print(f"✅ Database: {cls.DB_HOST}:{cls.DB_PORT}/{cls.DB_NAME}")
         return True
