@@ -1,0 +1,42 @@
+# FastAPI and server
+fastapi
+uvicorn
+pydantic
+
+# Database
+psycopg2-binary
+
+# Security
+bcrypt
+
+# HTTP requests
+requests
+
+# Environment variables
+python-dotenv
+
+# Optional: for better performance
+python-multipart# FastAPI and server
+fastapi
+uvicorn[standard]
+pydantic
+
+# Database
+psycopg2-binary
+
+# Security
+bcrypt
+
+# HTTP requests
+requests
+
+# Environment variables
+python-dotenv
+
+# Machine Learning
+scikit-learn
+pandas
+numpy
+
+# Additional
+python-multipart
