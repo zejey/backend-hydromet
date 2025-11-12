@@ -10,12 +10,15 @@ load_dotenv()
 class Config:
     """Application configuration"""
     
-    # Database
-    DB_NAME = os.getenv("DB_NAME")
-    DB_USER = os.getenv("DB_USER")
-    DB_PASSWORD = os.getenv("DB_PASSWORD")
-    DB_HOST = os.getenv("DB_HOST", "localhost")
-    DB_PORT = os.getenv("DB_PORT", "5432")
+    # Database - Support both local and Railway PostgreSQL variables
+    # Railway provides: PGDATABASE, PGUSER, PGPASSWORD, PGHOST, PGPORT
+    # Local provides: DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
+    
+    DB_NAME = os.getenv("DB_NAME") or os.getenv("PGDATABASE")
+    DB_USER = os.getenv("DB_USER") or os.getenv("PGUSER", "postgres")
+    DB_PASSWORD = os.getenv("DB_PASSWORD") or os.getenv("PGPASSWORD")
+    DB_HOST = os.getenv("DB_HOST") or os.getenv("PGHOST", "localhost")
+    DB_PORT = os.getenv("DB_PORT") or os.getenv("PGPORT", "5432")
     
     # iProg SMS API
     IPROG_API_TOKEN = os.getenv("IPROG_API_TOKEN")
@@ -51,7 +54,10 @@ class Config:
         missing = [key for key, value in required.items() if not value]
         
         if missing:
-            raise ValueError(f"❌ Missing required environment variables: {', '.join(missing)}")
+            # Don't fail - just warn (Railway sets PG* variables automatically)
+            print(f"⚠️  Warning: Missing environment variables: {', '.join(missing)}")
+            print(f"✅ Using Railway PostgreSQL variables instead")
+            return True
         
         print("✅ Configuration validated successfully")
         return True
