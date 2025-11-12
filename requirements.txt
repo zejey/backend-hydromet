@@ -19,6 +19,7 @@ python-dotenv
 scikit-learn
 pandas
 numpy
+imbalanced-learn
 
 # Additional
 python-multipart
