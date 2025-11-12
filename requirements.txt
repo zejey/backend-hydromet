@@ -21,6 +21,9 @@ pandas
 numpy
 imbalanced-learn
 
+# Google Cloud
+google-cloud-firestore
+
 # Additional
 python-multipart
 email-validator
