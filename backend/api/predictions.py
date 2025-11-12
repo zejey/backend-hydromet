@@ -22,6 +22,9 @@ from backend.ml.hazard_analyzer import HazardAnalyzer
 from backend.ml.model_manager import ModelManager
 from backend.utils.logger import get_logger
 
+# ✅ Import notification service
+from scripts.notification_util import send_event_notification
+
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/predictions", tags=["Weather Predictions"])
@@ -63,6 +66,7 @@ async def predict_from_weather_data(request: PredictionRequest):
     Predict weather hazards from raw weather API data
     
     Supports both OpenWeather and WeatherLink data formats
+    ✅ NOW SENDS SMS NOTIFICATIONS WHEN HAZARD DETECTED!
     
     Request Body:
     {
@@ -110,6 +114,32 @@ async def predict_from_weather_data(request: PredictionRequest):
         
         logger.info(f"Prediction made: {prediction['hazard_type']} (risk={prediction['risk_level']})")
         
+        # ✅✅✅ SEND NOTIFICATION IF HAZARD DETECTED ✅✅✅
+        if prediction.get("event") == 1:  # Hazard detected
+            try:
+                logger.info(f"🚨 Hazard detected! Sending notifications...")
+                logger.info(f"   Hazard Type: {prediction['hazard_type']}")
+                logger.info(f"   Risk Level: {prediction['risk_level']}")
+                logger.info(f"   Probability: {prediction.get('probability', 0):.2%}")
+                
+                send_event_notification(
+                    title=hazard_info.get("title", f"⚠️ {prediction['hazard_type']} Alert"),
+                    message=hazard_info.get("in_app", f"Weather hazard detected: {prediction['hazard_type']}"),
+                    notif_type="Alert",
+                    status="Active",
+                    send_sms=True,
+                    sms_recipients=None  # Will fetch from database
+                )
+                
+                logger.info("✅ Notifications sent successfully")
+                
+            except Exception as notify_error:
+                logger.error(f"❌ Failed to send notifications: {notify_error}", exc_info=True)
+                # Don't fail the request, just log the error
+        else:
+            logger.info("ℹ️  No hazard detected, skipping notifications")
+        # ✅✅✅ END OF NOTIFICATION LOGIC ✅✅✅
+        
         return PredictionResponse(
             success=True,
             prediction=prediction,
@@ -132,6 +162,7 @@ async def predict_from_custom_features(request: CustomFeaturesRequest):
     Predict weather hazards from custom weather features
     
     Use this when you have specific weather measurements
+    ✅ NOW SENDS SMS NOTIFICATIONS WHEN HAZARD DETECTED!
     
     Request Body:
     {
@@ -156,6 +187,33 @@ async def predict_from_custom_features(request: CustomFeaturesRequest):
         # Get notification template
         hazard_info = HazardAnalyzer.get_hazard_info(prediction["hazard_type"])
         
+        logger.info(f"Custom prediction: {prediction['hazard_type']} (risk={prediction['risk_level']})")
+        
+        # ✅✅✅ SEND NOTIFICATION IF HAZARD DETECTED ✅✅✅
+        if prediction.get("event") == 1:  # Hazard detected
+            try:
+                logger.info(f"🚨 Hazard detected! Sending notifications...")
+                logger.info(f"   Hazard Type: {prediction['hazard_type']}")
+                logger.info(f"   Risk Level: {prediction['risk_level']}")
+                logger.info(f"   Probability: {prediction.get('probability', 0):.2%}")
+                
+                send_event_notification(
+                    title=hazard_info.get("title", f"⚠️ {prediction['hazard_type']} Alert"),
+                    message=hazard_info.get("in_app", f"Weather hazard detected: {prediction['hazard_type']}"),
+                    notif_type="Alert",
+                    status="Active",
+                    send_sms=True,
+                    sms_recipients=None
+                )
+                
+                logger.info("✅ Notifications sent successfully")
+                
+            except Exception as notify_error:
+                logger.error(f"❌ Failed to send notifications: {notify_error}", exc_info=True)
+        else:
+            logger.info("ℹ️  No hazard detected, skipping notifications")
+        # ✅✅✅ END OF NOTIFICATION LOGIC ✅✅✅
+        
         return PredictionResponse(
             success=True,
             prediction=prediction,
@@ -177,6 +235,7 @@ async def predict_forecast(request: ForecastPredictionRequest):
     Predict hazards for multiple forecast time points
     
     Analyzes a list of weather forecasts and predicts hazards
+    ✅ SENDS NOTIFICATION FOR FORECAST HAZARDS
     
     Request Body:
     {
@@ -210,6 +269,38 @@ async def predict_forecast(request: ForecastPredictionRequest):
         summary = _create_forecast_summary(predictions, hazard_events)
         
         logger.info(f"Forecast predictions: {len(hazard_events)}/{len(predictions)} hazard events")
+        
+        # ✅✅✅ SEND NOTIFICATION FOR FORECAST HAZARDS ✅✅✅
+        if hazard_events:
+            try:
+                first_hazard = hazard_events[0]["prediction"]
+                hazard_info = HazardAnalyzer.get_hazard_info(first_hazard["hazard_type"])
+                
+                logger.info(f"🚨 Forecast hazards detected! Sending notifications...")
+                logger.info(f"   Total hazards: {len(hazard_events)}")
+                logger.info(f"   First hazard: {first_hazard['hazard_type']}")
+                
+                # Build forecast message
+                forecast_message = f"{len(hazard_events)} weather hazard(s) forecasted in the upcoming period. "
+                forecast_message += f"Next hazard: {first_hazard['hazard_type']} "
+                forecast_message += f"(Risk: {first_hazard['risk_level']}). "
+                forecast_message += "Stay alert and monitor weather updates."
+                
+                send_event_notification(
+                    title=f"📊 Forecast Alert: {len(hazard_events)} Hazard(s) Expected",
+                    message=forecast_message,
+                    notif_type="Forecast",
+                    status="Active",
+                    send_sms=True
+                )
+                
+                logger.info("✅ Forecast notifications sent")
+                
+            except Exception as notify_error:
+                logger.error(f"❌ Failed to send forecast notifications: {notify_error}", exc_info=True)
+        else:
+            logger.info("ℹ️  No forecast hazards detected, skipping notifications")
+        # ✅✅✅ END OF FORECAST NOTIFICATION LOGIC ✅✅✅
         
         return ForecastPredictionResponse(
             success=True,
