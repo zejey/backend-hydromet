@@ -10,7 +10,11 @@ import uuid
 from backend.models.hotline import EmergencyHotline, HotlineCreate, HotlineUpdate
 from backend.database import get_db_cursor
 
-router = APIRouter(prefix="/api/hotlines", tags=["Emergency Hotlines"])
+router = APIRouter(
+    prefix="/api/hotlines", 
+    tags=["Emergency Hotlines"],
+    redirect_slashes=False  # ✅ Fix the 307 redirect issue
+)
 
 
 @router.post("/", response_model=EmergencyHotline, status_code=status.HTTP_201_CREATED)
@@ -43,7 +47,9 @@ async def create_hotline(hotline_data: HotlineCreate):
             ))
             
             new_hotline = cur.fetchone()
-            return EmergencyHotline(**new_hotline)
+            # ✅ Convert to dict immediately while cursor is active
+            hotline_dict = dict(new_hotline) if new_hotline else None
+            return EmergencyHotline(**hotline_dict)
             
     except Exception as e:
         raise HTTPException(
@@ -73,7 +79,8 @@ async def get_hotlines(active_only: bool = True):
                     ORDER BY priority ASC, service_name ASC
                 """)
             
-            hotlines = cur.fetchall()
+            # ✅ Convert all rows to dicts while cursor is active
+            hotlines = [dict(row) for row in cur.fetchall()]
             return [EmergencyHotline(**hotline) for hotline in hotlines]
             
     except Exception as e:
@@ -96,7 +103,8 @@ async def get_hotlines_by_category(category: str):
                 ORDER BY priority ASC
             """, (category,))
             
-            hotlines = cur.fetchall()
+            # ✅ Convert all rows to dicts while cursor is active
+            hotlines = [dict(row) for row in cur.fetchall()]
             return [EmergencyHotline(**hotline) for hotline in hotlines]
             
     except Exception as e:
@@ -126,7 +134,9 @@ async def get_hotline(hotline_id: str):
                     detail="Hotline not found"
                 )
             
-            return EmergencyHotline(**hotline_data)
+            # ✅ Convert to dict while cursor is active
+            hotline_dict = dict(hotline_data)
+            return EmergencyHotline(**hotline_dict)
             
     except HTTPException:
         raise
@@ -200,7 +210,9 @@ async def update_hotline(hotline_id: str, hotline_data: HotlineUpdate):
                     detail="Hotline not found"
                 )
             
-            return EmergencyHotline(**updated_hotline)
+            # ✅ Convert to dict while cursor is active
+            hotline_dict = dict(updated_hotline)
+            return EmergencyHotline(**hotline_dict)
             
     except HTTPException:
         raise
