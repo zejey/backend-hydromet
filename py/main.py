@@ -48,6 +48,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
+    redirect_slashes=False,  # ✅ Fix 307 redirects at app level
     contact={
         "name": "zjayarcena",
         "email": "your-email@example.com"

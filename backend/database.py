@@ -59,7 +59,7 @@ def get_db_connection():
     conn = pool_instance.getconn()
     try:
         yield conn
-        conn.commit()
+        conn.commit()  # ✅ Always commit, even for SELECT queries
     except Exception as e:
         conn.rollback()
         raise e
@@ -79,12 +79,20 @@ def get_db_cursor():
             users = cur.fetchall()
             # users is a list of dicts
     """
-    with get_db_connection() as conn:
+    pool_instance = get_connection_pool()
+    conn = pool_instance.getconn()
+    cursor = None
+    try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            yield cursor
-        finally:
+        yield cursor
+        conn.commit()  # ✅ Commit before closing cursor
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        if cursor:
             cursor.close()
+        pool_instance.putconn(conn)
 
 
 def close_connection_pool():
