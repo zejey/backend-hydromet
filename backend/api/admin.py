@@ -41,22 +41,6 @@ async def create_admin(admin_data: AdminCreate):
             new_admin = cur.fetchone()
             return Admin(**new_admin)
 
-@router.get("/", response_model=List[Admin])
-async def get_admins():
-    """Get all admins"""
-    try:
-        with get_db_cursor() as cur:
-            cur.execute("SELECT id, email, role, username, uid FROM admin ORDER BY id")
-            admins = cur.fetchall()
-            return [Admin(**admin) for admin in admins]
-            
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching admins: {str(e)}"
-        )
-
-
 @router.get("/{admin_id}", response_model=Admin)
 async def get_admin(admin_id: int):
     """Get admin by ID"""
