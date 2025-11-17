@@ -10,6 +10,7 @@ from backend.database import get_db_cursor
 
 router = APIRouter(prefix="/api/admins", tags=["Admin Management"])
 
+
 @router.post("/", response_model=Admin, status_code=status.HTTP_201_CREATED)
 async def create_admin(admin_data: AdminCreate):
     """Create a new admin"""
@@ -23,9 +24,6 @@ async def create_admin(admin_data: AdminCreate):
                     detail="Admin with this email already exists"
                 )
             
-            # Generate UID if not provided
-            uid = admin_data.uid if admin_data.uid else str(uuid.uuid4())
-            
             # Insert new admin
             cur.execute("""
                 INSERT INTO admin (email, role, username, uid)
@@ -35,11 +33,20 @@ async def create_admin(admin_data: AdminCreate):
                 admin_data.email,
                 admin_data.role,
                 admin_data.username,
-                uid  # Use generated or provided UID
+                admin_data.uid
             ))
             
             new_admin = cur.fetchone()
             return Admin(**new_admin)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating admin: {str(e)}"
+        )
+
 
 @router.get("/{admin_id}", response_model=Admin)
 async def get_admin(admin_id: int):
