@@ -134,6 +134,7 @@ async def login(data: dict):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"UNEXPECTED LOGIN ERROR: {e}", flush=True)  # <--- Add this line to log the real exception
         raise HTTPException(status_code=500, detail=f"Login error: {str(e)}")
 
 @router.post("/", response_model=Admin, status_code=status.HTTP_201_CREATED)
