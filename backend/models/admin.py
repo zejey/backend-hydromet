@@ -2,7 +2,7 @@
 Admin Pydantic models
 """
 
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, constr
 from typing import Optional
 
 class AdminBase(BaseModel):
@@ -13,7 +13,7 @@ class AdminBase(BaseModel):
 
 class AdminCreate(AdminBase):
     """Model for creating a new admin"""
-    password: str = Field(..., min_length=8, max_length=128, description="Password for the admin (min 8 chars)")
+    password: str = Field(..., min_length=8, max_length=72, description="Password for the admin (min 8 chars)")
 
 class AdminUpdate(BaseModel):
     """Model for updating an admin"""
