@@ -84,6 +84,11 @@ async def login(data: dict):
     password = data.get("password")
     if not email or not password:
         raise HTTPException(status_code=400, detail="Email and password are required.")
+    
+    # Add validation for password length BEFORE calling verify_password
+    if len(password.encode('utf-8')) > 72:
+        raise HTTPException(status_code=401, detail="Incorrect email or password.")
+    
     try:
         with get_db_cursor() as cur:
             cur.execute("SELECT id, email, role, username, uid, password_hash FROM admin WHERE email = %s", (email,))
@@ -101,7 +106,6 @@ async def login(data: dict):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Login error: {str(e)}")
-
 
 @router.post("/", response_model=Admin, status_code=status.HTTP_201_CREATED)
 async def create_admin(admin_data: AdminCreate):
