@@ -8,6 +8,7 @@ psycopg2-binary
 
 # Security
 bcrypt
+passlib
 
 # HTTP requests
 requests
