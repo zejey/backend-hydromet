@@ -4,11 +4,60 @@ Admin API endpoints
 import uuid
 from fastapi import APIRouter, HTTPException, status
 from typing import List
+from passlib.context import CryptContext
+import jwt
+import datetime
+import os
+from pydantic import BaseModel
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordBearer
 
 from backend.models.admin import Admin, AdminCreate, AdminUpdate, AdminResponse
 from backend.database import get_db_cursor
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+SECRET_KEY = os.environ.get("SECRET_KEY", "SUPER_SECRET_KEY")  # Use a strong, real secret in prod!
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
 router = APIRouter(prefix="/api/admins", tags=["Admin Management"])
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admins/login")
+
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+def create_access_token(data: dict, expires_delta: int = None):
+    to_encode = data.copy()
+    expire = datetime.datetime.utcnow() + datetime.timedelta(
+        minutes=expires_delta or ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_current_admin(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials.",
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        admin_id = payload.get("sub")
+        if admin_id is None:
+            raise credentials_exception
+        # Optionally: fetch admin from database here
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired.")
+    except jwt.PyJWTError:
+        raise credentials_exception
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 @router.get("/", response_model=List[Admin])
 async def get_all_admins():
@@ -25,6 +74,35 @@ async def get_all_admins():
         )
 
 
+@router.post("/login", response_model=Token)
+async def login(data: dict):
+    """
+    Admin login endpoint. Receives: {"email": "...", "password": "..."} 
+    Returns: {"access_token": "...", "token_type": "bearer"}
+    """
+    email = data.get("email")
+    password = data.get("password")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required.")
+    try:
+        with get_db_cursor() as cur:
+            cur.execute("SELECT id, email, role, username, uid, password_hash FROM admin WHERE email = %s", (email,))
+            admin_row = cur.fetchone()
+            if not admin_row or not verify_password(password, admin_row["password_hash"]):
+                raise HTTPException(status_code=401, detail="Incorrect email or password.")
+            # Build JWT
+            access_token = create_access_token({
+                "sub": str(admin_row["id"]),
+                "email": admin_row["email"],
+                "role": admin_row["role"]
+            })
+        return {"access_token": access_token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Login error: {str(e)}")
+
+
 @router.post("/", response_model=Admin, status_code=status.HTTP_201_CREATED)
 async def create_admin(admin_data: AdminCreate):
     """Create a new admin"""
@@ -37,17 +115,19 @@ async def create_admin(admin_data: AdminCreate):
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Admin with this email already exists"
                 )
-            
+           
+            password_hash = hash_password(admin_data.password)
             # Insert new admin
             cur.execute("""
-                INSERT INTO admin (email, role, username, uid)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO admin (email, role, username, uid, password_hash)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id, email, role, username, uid
             """, (
                 admin_data.email,
                 admin_data.role,
                 admin_data.username,
-                admin_data.uid
+                admin_data.uid,
+                password_hash
             ))
             
             new_admin = cur.fetchone()
