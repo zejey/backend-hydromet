@@ -25,33 +25,16 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admins/login")
 
 
 def hash_password(password: str) -> str:
-    # Encode and truncate at byte level, ensuring valid UTF-8
-    password_bytes = password.encode('utf-8')
-    if len(password_bytes) > 72:
-        # Truncate at 72 bytes
-        password_bytes = password_bytes[:72]
-        # Find the last valid UTF-8 character boundary
-        while len(password_bytes) > 0:
-            try:
-                password = password_bytes.decode('utf-8')
-                break
-            except UnicodeDecodeError:
-                # Back up one byte and try again
-                password_bytes = password_bytes[:-1]
+    # Simply take first 72 characters (not bytes) - this guarantees under 72 bytes for ASCII
+    # For non-ASCII, bcrypt will handle truncation internally
+    if len(password) > 72:
+        password = password[:72]
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    # Same truncation logic for verification
-    password_bytes = plain_password.encode('utf-8')
-    if len(password_bytes) > 72:
-        password_bytes = password_bytes[:72]
-        while len(password_bytes) > 0:
-            try:
-                plain_password = password_bytes.decode('utf-8')
-                break
-            except UnicodeDecodeError:
-                password_bytes = password_bytes[:-1]
-    return pwd_context.verify(plain_password, hashed_password)
+    if len(plain_password) > 72:
+        plain_password = plain_password[:72]
+    return pwd_context.verify(plain_password, hashed_password)    return pwd_context.verify(plain_password, hashed_password)
 
 def create_access_token(data: dict, expires_delta: int = None):
     to_encode = data.copy()
