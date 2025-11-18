@@ -25,12 +25,16 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admins/login")
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # Truncate to 72 bytes before hashing (bcrypt's maximum)
+    password_bytes = password.encode('utf-8')[:72]
+    password_truncated = password_bytes.decode('utf-8', errors='ignore')
+    return pwd_context.hash(password_truncated)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-def create_access_token(data: dict, expires_delta: int = None):
+    # Truncate to 72 bytes before verifying (must match hash behavior)
+    password_bytes = plain_password.encode('utf-8')[:72]
+    password_truncated = password_bytes.decode('utf-8', errors='ignore')
+    return pwd_context.verify(password_truncated, hashed_password)def create_access_token(data: dict, expires_delta: int = None):
     to_encode = data.copy()
     expire = datetime.datetime.utcnow() + datetime.timedelta(
         minutes=expires_delta or ACCESS_TOKEN_EXPIRE_MINUTES
