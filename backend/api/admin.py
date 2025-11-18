@@ -25,16 +25,39 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admins/login")
 
 
 def hash_password(password: str) -> str:
-    # Simply take first 72 characters (not bytes) - this guarantees under 72 bytes for ASCII
-    # For non-ASCII, bcrypt will handle truncation internally
-    if len(password) > 72:
-        password = password[:72]
+    # Truncate at byte level to 72 bytes
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        # Truncate to 72 bytes
+        password_bytes = password_bytes[:72]
+        # Decode back, removing any incomplete UTF-8 characters at the end
+        try:
+            password = password_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            # If we cut in the middle of a character, keep removing bytes until valid
+            for i in range(1, 5):  # UTF-8 chars are max 4 bytes
+                try:
+                    password = password_bytes[:-i].decode('utf-8')
+                    break
+                except UnicodeDecodeError:
+                    continue
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    if len(plain_password) > 72:
-        plain_password = plain_password[:72]
-    return pwd_context.verify(plain_password, hashed_password)    
+    # Apply same truncation as hash_password
+    password_bytes = plain_password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+        try:
+            plain_password = password_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            for i in range(1, 5):
+                try:
+                    plain_password = password_bytes[:-i].decode('utf-8')
+                    break
+                except UnicodeDecodeError:
+                    continue
+    return pwd_context.verify(plain_password, hashed_password)   
 
 def create_access_token(data: dict, expires_delta: int = None):
     to_encode = data.copy()
