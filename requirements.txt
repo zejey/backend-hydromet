@@ -7,8 +7,8 @@ pydantic
 psycopg2-binary
 
 # Security
-bcrypt>=4.0.0
-passlib>=1.7.5
+bcrypt<4.0.0
+passlib==1.7.4
 jwt
 
 # HTTP requests
