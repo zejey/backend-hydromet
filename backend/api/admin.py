@@ -102,17 +102,17 @@ async def get_all_admins():
             detail=f"Error fetching admins: {str(e)}"
         )
 
-
 @router.post("/login", response_model=Token)
 async def login(data: dict):
     """
     Admin login endpoint. Receives: {"email": "...", "password": "..."} 
+    (The "email" field can be either your email address or your username)
     Returns: {"access_token": "...", "token_type": "bearer"}
     """
-    email = data.get("email")
+    login_input = data.get("email")
     password = data.get("password")
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password are required.")
+    if not login_input or not password:
+        raise HTTPException(status_code=400, detail="Email/Username and password are required.")
     
     # Add validation for password length BEFORE calling verify_password
     if len(password.encode('utf-8')) > 72:
@@ -120,7 +120,11 @@ async def login(data: dict):
     
     try:
         with get_db_cursor() as cur:
-            cur.execute("SELECT id, email, role, username, uid, password_hash FROM admin WHERE email = %s", (email,))
+            cur.execute("""
+                SELECT id, email, role, username, uid, password_hash 
+                FROM admin 
+                WHERE email = %s OR username = %s
+            """, (login_input, login_input))
             admin_row = cur.fetchone()
             if not admin_row or not verify_password(password, admin_row["password_hash"]):
                 raise HTTPException(status_code=401, detail="Incorrect email or password.")
@@ -134,7 +138,7 @@ async def login(data: dict):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"UNEXPECTED LOGIN ERROR: {e}", flush=True)  # <--- Add this line to log the real exception
+        print(f"UNEXPECTED LOGIN ERROR: {e}", flush=True)
         raise HTTPException(status_code=500, detail=f"Login error: {str(e)}")
 
 @router.post("/", response_model=Admin, status_code=status.HTTP_201_CREATED)
