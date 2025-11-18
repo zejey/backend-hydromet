@@ -34,7 +34,7 @@ def hash_password(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     if len(plain_password) > 72:
         plain_password = plain_password[:72]
-    return pwd_context.verify(plain_password, hashed_password)    return pwd_context.verify(plain_password, hashed_password)
+    return pwd_context.verify(plain_password, hashed_password)    
 
 def create_access_token(data: dict, expires_delta: int = None):
     to_encode = data.copy()
