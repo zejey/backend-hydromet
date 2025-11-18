@@ -10,6 +10,20 @@ from backend.database import get_db_cursor
 
 router = APIRouter(prefix="/api/admins", tags=["Admin Management"])
 
+@router.get("/", response_model=List[Admin])
+async def get_all_admins():
+    """Get a list of all admins"""
+    try:
+        with get_db_cursor() as cur:
+            cur.execute("SELECT id, email, role, username, uid FROM admin")
+            admins = cur.fetchall()
+            return [Admin(**admin) for admin in admins]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching admins: {str(e)}"
+        )
+
 
 @router.post("/", response_model=Admin, status_code=status.HTTP_201_CREATED)
 async def create_admin(admin_data: AdminCreate):
