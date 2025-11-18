@@ -9,6 +9,7 @@ psycopg2-binary
 # Security
 bcrypt
 passlib
+jwt
 
 # HTTP requests
 requests
