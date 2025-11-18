@@ -116,7 +116,14 @@ async def create_admin(admin_data: AdminCreate):
                     detail="Admin with this email already exists"
                 )
            
-            password_hash = hash_password(admin_data.password)
+            password = admin_data.password
+            if len(password.encode('utf-8')) > 72:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Password is too long (over 72 bytes after UTF-8 encoding). Please use a shorter password."
+                )
+
+            password_hash = hash_password(password)
             # Insert new admin
             cur.execute("""
                 INSERT INTO admin (email, role, username, uid, password_hash)
