@@ -337,8 +337,10 @@ async def send_otp_registration(request: SendOTPRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send OTP: {str(e)}"
-        )@router.post("/resend", response_model=OTPResponse)
+        )
 
+
+@router.post("/resend", response_model=OTPResponse)
 async def resend_otp(request: SendOTPRequest):
     """Resend OTP (invalidates previous OTP)"""
     try:
