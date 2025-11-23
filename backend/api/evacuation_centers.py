@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
-from backend.utils.database import get_db_cursor
+from ..utils.database import get_db_cursor
 from backend.models.evacuation_center import EvacuationCenter
 
 router = APIRouter(prefix="/api/evacuation-centers", tags=["Evacuation Centers"])
