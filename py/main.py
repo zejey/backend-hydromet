@@ -77,6 +77,7 @@ app.include_router(safety_categories_router)  # /api/safety/categories/*
 app.include_router(safety_tips_router)        # /api/safety/tips/*
 app.include_router(auto_predictor_router)
 app.include_router(evacuation_centers_router)
+app.include_router(hazard_locations_router)
 
 
 @app.get("/")
