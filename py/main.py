@@ -30,6 +30,7 @@ from backend.api import (
     weather_router,
     auto_predictor_router,
     evacuation_centers_router,
+    hazard_locations_router,
 )
 
 # Validate configuration
