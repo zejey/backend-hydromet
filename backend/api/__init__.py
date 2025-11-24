@@ -15,6 +15,7 @@ from backend.api.weather import router as weather_router
 from backend.api.auto_predictor import router as auto_predictor_router
 from backend.api.evacuation_centers import router as evacuation_centers_router
 from backend.api.hazard_locations import router as hazard_locations_router
+from backend.api.government_agency import router as government_agency_router
 
 __all__ = [
     'users_router',
@@ -28,5 +29,6 @@ __all__ = [
     'weather_router',
     'auto_predictor_router',
     'evacuation_centers_router',
-    'hazard_locations_router'
+    'hazard_locations_router',
+    'government_agency_router'
 ]
