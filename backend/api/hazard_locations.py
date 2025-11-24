@@ -1,35 +1,49 @@
-from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import datetime
+from fastapi import APIRouter, HTTPException
+from typing import List
+from backend.database import get_db_cursor
+from backend.models.hazard_location import (
+    HazardLocation,
+    HazardLocationCreate,
+    HazardLocationUpdate,
+    HazardLocationResponse
+)
 
-class HazardLocationBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255)
-    type: str = Field(..., max_length=64)          # e.g. 'flood', 'heat', etc.
-    lat: float                                    # Latitude
-    lng: float                                    # Longitude
-    severity: str = Field(..., max_length=16)     # 'low', 'medium', 'high'
-    description: Optional[str] = None
+router = APIRouter(prefix="/api/hazard-locations", tags=["Hazard Locations"])
 
-class HazardLocationCreate(HazardLocationBase):
-    pass
+@router.get("/", response_model=List[HazardLocation])
+def get_hazard_locations():
+    """
+    Get all hazard locations
+    """
+    try:
+        with get_db_cursor() as cur:
+            cur.execute("""
+                SELECT id, name, type, location_lat AS lat, location_lng AS lng, severity, description,
+                       created_at, updated_at
+                FROM hazard_locations
+                ORDER BY id
+            """)
+            hazards = cur.fetchall()
+            return hazards
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
-class HazardLocationUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    type: Optional[str] = Field(None, max_length=64)
-    lat: Optional[float] = None
-    lng: Optional[float] = None
-    severity: Optional[str] = Field(None, max_length=16)
-    description: Optional[str] = None
+@router.get("/{hazard_id}", response_model=HazardLocation)
+def get_hazard_location_by_id(hazard_id: int):
+    """
+    Get a hazard location by id
+    """
+    try:
+        with get_db_cursor() as cur:
+            cur.execute("""
+                SELECT id, name, type, location_lat AS lat, location_lng AS lng, severity, description, created_at, updated_at
+                FROM hazard_locations WHERE id = %s
+            """, (hazard_id,))
+            hazard = cur.fetchone()
+            if not hazard:
+                raise HTTPException(status_code=404, detail="Hazard not found")
+            return hazard
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
-class HazardLocation(HazardLocationBase):
-    id: int
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class HazardLocationResponse(BaseModel):
-    success: bool
-    message: str
-    hazard: Optional[HazardLocation] = None
+# Optionally add POST, PUT, DELETE endpoints as needed, following your other APIs' standards.   hazard: Optional[HazardLocation] = None
