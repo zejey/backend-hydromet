@@ -29,3 +29,6 @@ google-cloud-firestore
 # Additional
 python-multipart
 email-validator
+
+# Email
+sendgrid
