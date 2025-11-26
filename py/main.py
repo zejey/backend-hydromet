@@ -81,7 +81,7 @@ app.include_router(auto_predictor_router)
 app.include_router(evacuation_centers_router)
 app.include_router(hazard_locations_router)
 app.include_router(government_agency_router)
-app.include_router(admin_invites)
+app.include_router(admin_invites_router)
 
 
 @app.get("/")
