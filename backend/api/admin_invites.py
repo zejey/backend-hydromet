@@ -1,32 +1,44 @@
-# backend/api/admin_invites.py
-
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+2from fastapi import APIRouter, HTTPException, BackgroundTasks
 from backend.models.admin_invites import (
     AdminInviteCreate, AdminInviteResponse, SetPasswordRequest
 )
 from backend.database import get_db_cursor
 from passlib.hash import bcrypt
 from datetime import datetime, timedelta
-import secrets, smtplib, ssl
-from email.message import EmailMessage
-import uuid
+from email.utils import formataddr
+import secrets, os, uuid
+
+# --- SendGrid imports ---
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 router = APIRouter(prefix='/api/admin-invites', tags=['AdminInvites'])
 
-SMTP_USER = "zamuelarcena7@gmail.com"
-SMTP_PASS = "newGra!n99"
-FRONTEND_URL = "https://your-frontend.com"  # Adjust!
+# Set your SendGrid API key and verified sender
+SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "your_sendgrid_api_key")
+FROM_EMAIL = os.environ.get("SENDGRID_SENDER", "your_verified_sender@email.com")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://your-frontend.com")
 
 def send_invite_email(email: str, link: str):
-    msg = EmailMessage()
-    msg["From"] = SMTP_USER
-    msg["To"] = email
-    msg["Subject"] = "HydroMet Admin Invitation"
-    msg.set_content(f"Set your HydroMet admin account password: {link}\n\nThis invite expires in 24h.")
-    ctx = ssl.create_default_context()
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ctx) as s:
-        s.login(SMTP_USER, SMTP_PASS)
-        s.send_message(msg)
+    """Send the invite email using SendGrid"""
+    html_content = f"""
+    <p>You have been invited to become a HydroMet admin.</p>
+    <p><strong>Set your password with this link:</strong><br>
+    <a href="{link}">{link}</a></p>
+    <p>This invite expires in 24 hours.</p>
+    """
+    message = Mail(
+        from_email=formataddr(("HydroMet Admin System", FROM_EMAIL)),
+        to_emails=email,
+        subject="HydroMet Admin Invitation",
+        html_content=html_content
+    )
+    try:
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
+        print(f"SendGrid: Invite sent to {email}. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"EMAIL SEND ERROR: {e}")
 
 @router.post("/invite", response_model=AdminInviteResponse)
 async def create_admin_invite(invite: AdminInviteCreate, background_tasks: BackgroundTasks):
@@ -38,7 +50,9 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
         cur.execute("SELECT 1 FROM admin WHERE email = %s", (invite.email,))
         if cur.fetchone():
             raise HTTPException(status_code=409, detail="Admin with this email already exists.")
-        cur.execute("SELECT 1 FROM admin_invites WHERE email = %s AND used = false AND expires_at > now()", (invite.email,))
+        cur.execute(
+            "SELECT 1 FROM admin_invites WHERE email = %s AND used = false AND expires_at > now()", (invite.email,)
+        )
         if cur.fetchone():
             raise HTTPException(status_code=409, detail="Invite already exists and is still valid.")
         cur.execute(
