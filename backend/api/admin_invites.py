@@ -1,4 +1,4 @@
-2from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from backend.models.admin_invites import (
     AdminInviteCreate, AdminInviteResponse, SetPasswordRequest
 )
