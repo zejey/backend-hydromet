@@ -9,6 +9,7 @@ from passlib.hash import bcrypt
 from datetime import datetime, timedelta
 import secrets, smtplib, ssl
 from email.message import EmailMessage
+import uuid
 
 router = APIRouter(prefix='/api/admin-invites', tags=['AdminInvites'])
 
@@ -34,7 +35,7 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
     expires_at = created_at + timedelta(hours=24)
     with get_db_cursor() as cur:
         # Check for existing admin or pending invite
-        cur.execute("SELECT 1 FROM admins WHERE email = %s", (invite.email,))
+        cur.execute("SELECT 1 FROM admin WHERE email = %s", (invite.email,))
         if cur.fetchone():
             raise HTTPException(status_code=409, detail="Admin with this email already exists.")
         cur.execute("SELECT 1 FROM admin_invites WHERE email = %s AND used = false AND expires_at > now()", (invite.email,))
@@ -68,12 +69,13 @@ async def set_admin_password(req: SetPasswordRequest):
         role = invite['role']
         username = email.split("@")[0]
         password_hash = bcrypt.hash(req.password)
+        uid = str(uuid.uuid4())
         cur.execute(
-            """INSERT INTO admins (email, role, username, password_hash)
-               VALUES (%s, %s, %s, %s)
-               RETURNING id, email, role, username
+            """INSERT INTO admin (email, role, username, password_hash, uid)
+               VALUES (%s, %s, %s, %s, %s)
+               RETURNING id, email, role, username, uid
             """,
-            (email, role, username, password_hash)
+            (email, role, username, password_hash, uid)
         )
         cur.execute(
             "UPDATE admin_invites SET used = true, used_at = %s WHERE token = %s",
