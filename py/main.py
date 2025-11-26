@@ -32,6 +32,7 @@ from backend.api import (
     evacuation_centers_router,
     hazard_locations_router,
     government_agency_router,
+    admin_invites_router,
 )
 
 # Validate configuration
