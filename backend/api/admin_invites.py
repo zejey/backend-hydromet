@@ -4,7 +4,7 @@ from backend.models.admin_invites import (
 )
 from backend.database import get_db_cursor
 from passlib.hash import bcrypt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.utils import formataddr
 import secrets, os, uuid
 
@@ -43,7 +43,7 @@ def send_invite_email(email: str, link: str):
 @router.post("/invite", response_model=AdminInviteResponse)
 async def create_admin_invite(invite: AdminInviteCreate, background_tasks: BackgroundTasks):
     token = secrets.token_urlsafe(48)
-    created_at = datetime.utcnow()
+    created_at = datetime.now(timezone.utc)
     expires_at = created_at + timedelta(hours=24)
     with get_db_cursor() as cur:
         # Check for existing admin or pending invite
@@ -77,7 +77,8 @@ async def set_admin_password(req: SetPasswordRequest):
             raise HTTPException(status_code=400, detail="Invalid token.")
         if invite['used']:
             raise HTTPException(status_code=400, detail="Invite already used.")
-        if invite['expires_at'] < datetime.utcnow():
+        # compare using timezone-aware now
+        if invite['expires_at'] < datetime.now(timezone.utc):
             raise HTTPException(status_code=400, detail="Invite expired.")
         email = invite['email']
         role = invite['role']
@@ -93,6 +94,6 @@ async def set_admin_password(req: SetPasswordRequest):
         )
         cur.execute(
             "UPDATE admin_invites SET used = true, used_at = %s WHERE token = %s",
-            (datetime.utcnow(), req.token)
+            (datetime.now(timezone.utc), req.token)
         )
     return AdminInviteResponse(success=True, message="Admin account created! You can now log in.", invite=None)
