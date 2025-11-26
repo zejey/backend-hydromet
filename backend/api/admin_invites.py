@@ -13,8 +13,8 @@ import uuid
 
 router = APIRouter(prefix='/api/admin-invites', tags=['AdminInvites'])
 
-SMTP_USER = "yourapp@gmail.com"
-SMTP_PASS = "YOUR_GMAIL_APP_PASSWORD"
+SMTP_USER = "zamuelarcena7@gmail.com"
+SMTP_PASS = "newGra!n99"
 FRONTEND_URL = "https://your-frontend.com"  # Adjust!
 
 def send_invite_email(email: str, link: str):
