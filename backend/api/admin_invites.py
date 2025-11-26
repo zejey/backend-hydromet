@@ -64,7 +64,7 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
             (invite.email, invite.role, token, created_at, expires_at, False, invite.invited_by),
         )
         res = cur.fetchone()
-    invite_link = f"{FRONTEND_URL}/set-password?token={token}"
+    invite_link = f"{FRONTEND_URL}/#/set-password?token={token}"
     background_tasks.add_task(send_invite_email, invite.email, invite_link)
     return AdminInviteResponse(success=True, message="Admin invite sent.", invite=res)
 
