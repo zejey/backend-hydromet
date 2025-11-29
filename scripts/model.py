@@ -350,30 +350,72 @@ def predict_from_features(features_dict):
 
     return result
 
+# Replace the existing features_from_openweather_json function in scripts/model.py with the version below.
+# Also add the helper function _to_celsius_if_needed near the top of the file (below imports).
+
+def _to_celsius_if_needed(temp):
+    """
+    Convert a temperature value to Celsius if it looks like Kelvin.
+
+    Heuristic:
+    - If temp is None -> return None
+    - If numeric value > 200 -> assume Kelvin and convert to Celsius
+    - Otherwise assume the value is already Celsius
+    """
+    if temp is None:
+        return None
+    try:
+        t = float(temp)
+    except (TypeError, ValueError):
+        return None
+
+    # Kelvin values will be >> 200 (e.g., ~273-320). Celsius values are typically within -100..+100
+    return t - 273.15 if t > 200.0 else t
+
+
 def features_from_openweather_json(weather_json):
-    """Parses OpenWeather API JSON to model feature dict."""
-    main = weather_json.get("main", {})
-    wind = weather_json.get("wind", {})
-    rain = weather_json.get("rain", {})
-    snow = weather_json.get("snow", {})
+    """Parses OpenWeather API JSON to model feature dict (robust to metric/Kelvin differences)."""
+    main = weather_json.get("main", {}) or {}
+    wind = weather_json.get("wind", {}) or {}
+    rain = weather_json.get("rain", {}) or {}
+    snow = weather_json.get("snow", {}) or {}
     dt = weather_json.get("dt", None)
     timestamp = pd.to_datetime(dt, unit="s") if dt else pd.Timestamp.now()
 
-    # Convert Kelvin to Celsius if needed
-    temp_k = main.get("temp", 298)
-    temp_min_k = main.get("temp_min", 298)
-    temp_max_k = main.get("temp_max", 298)
+    # Try to obtain temps; don't assume units — convert only if they look like Kelvin
+    temp_val = main.get("temp", None)
+    temp_min_val = main.get("temp_min", None)
+    temp_max_val = main.get("temp_max", None)
+
+    temp_c = _to_celsius_if_needed(temp_val)
+    temp_min_c = _to_celsius_if_needed(temp_min_val)
+    temp_max_c = _to_celsius_if_needed(temp_max_val)
+
+    # Fallback logic to ensure we have reasonable numeric values
+    if temp_c is None and temp_min_c is not None:
+        temp_c = temp_min_c
+    if temp_c is None and temp_max_c is not None:
+        temp_c = temp_max_c
+    if temp_min_c is None and temp_c is not None:
+        temp_min_c = temp_c
+    if temp_max_c is None and temp_c is not None:
+        temp_max_c = temp_c
+
+    # Final conservative defaults (avoid absurd missing data causing exceptions)
+    temperature = temp_c if temp_c is not None else 0.0
+    temp_min = temp_min_c if temp_min_c is not None else temperature
+    temp_max = temp_max_c if temp_max_c is not None else temperature
 
     features = {
-        "temperature": temp_k - 273.15,  # Kelvin to Celsius
-        "temp_min": temp_min_k - 273.15,
-        "temp_max": temp_max_k - 273.15,
+        "temperature": temperature,
+        "temp_min": temp_min,
+        "temp_max": temp_max,
         "pressure": main.get("pressure", 1013),
         "humidity": main.get("humidity", 60),
         "wind_speed": wind.get("speed", 0),
         "wind_gust": wind.get("gust", wind.get("speed", 0)),
         "wind_direction": wind.get("deg", 180),
-        "precipitation": rain.get("1h", 0) + snow.get("1h", 0),
+        "precipitation": float(rain.get("1h", 0) or 0) + float(snow.get("1h", 0) or 0),
         "timestamp": timestamp
     }
     return features
