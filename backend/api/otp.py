@@ -97,7 +97,8 @@ async def send_otp(request: SendOTPRequest):
                 json={
                     "api_token": Config.IPROG_API_TOKEN,
                     "phone_number": phone_number,
-                    "message": f"Your HydroMet login code is: {otp_code}. Valid for 10 minutes. Do not share this code."
+                    "message": f"Your HydroMet login code is: {otp_code}. Valid for 10 minutes. Do not share this code.",
+                    "sender_name": getattr(Config, "IPROG_SENDER_NAME", "Ka Prets")
                 },
                 timeout=10
             )
@@ -141,7 +142,6 @@ async def send_otp(request: SendOTPRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send OTP: {str(e)}"
         )
-
 
 @router.post("/verify", response_model=OTPResponse)
 async def verify_otp(request: VerifyOTPRequest):
@@ -293,7 +293,8 @@ async def send_otp_registration(request: SendOTPRequest):
                 json={
                     "api_token": Config.IPROG_API_TOKEN,
                     "phone_number": phone_number,
-                    "message": f"Your HydroMet verification code is: {otp_code}. Valid for 10 minutes. Do not share this code."
+                    "message": f"Your HydroMet verification code is: {otp_code}. Valid for 10 minutes. Do not share this code.",
+                    "sender_name": getattr(Config, "IPROG_SENDER_NAME", "Ka Prets")
                 },
                 timeout=10
             )
@@ -338,7 +339,6 @@ async def send_otp_registration(request: SendOTPRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send OTP: {str(e)}"
         )
-
 
 @router.post("/resend", response_model=OTPResponse)
 async def resend_otp(request: SendOTPRequest):
