@@ -11,11 +11,15 @@ from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import SelectKBest, mutual_info_classif, f_classif
 from sklearn.metrics import classification_report
 from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
 
 from config import HAZARD_THRESHOLDS, MODEL_CONFIG, MODEL_PATH, METADATA_PATH
 from hazard_type_mapping import determine_hazard_type
 from notification_mapping import hazard_notification_templates
 from notification_util import NotificationService
+from logger_util import get_logger
+
+logger = get_logger(__name__)
 
 # ----------- Feature Engineering & Hazard Scoring -----------
 
@@ -202,61 +206,88 @@ def train_from_csv(csv_path):
         if (col_data.isna() | (col_data == 0)).all():
             to_drop.append(col)
     if to_drop:
-        print("Dropping columns with all zeros/NaNs:", to_drop)
+        logger.info("Dropping columns with all zeros/NaNs: %s", to_drop)
         feature_cols = [col for col in feature_cols if col not in to_drop]
 
-    # Prepare data
-    X = df[feature_cols].values
-    y = df["event"].values
+    # Prepare data (keep as arrays for modeling)
+    X_all = df[feature_cols].values
+    y_all = df["event"].values
 
-    print(f"\n✓ Loaded {len(df)} days of training data")
-    print(f"  Features: {len(feature_cols)}")
-    print(f"  Hazard events: {y.sum()} ({y.mean()*100:.1f}%)")
+    logger.info("✓ Loaded %d days of training data", len(df))
+    logger.info("  Features: %d", len(feature_cols))
+    logger.info("  Hazard events: %d (%.2f%%)", int(y_all.sum()), y_all.mean()*100)
 
-    # Handle imbalance with SMOTE if events < 30%
-    event_rate = np.mean(y)
-    if event_rate < 0.3:
-        print(f"⚠ Dataset imbalanced (event rate: {event_rate:.2%}), applying SMOTE")
-        smote = SMOTE(random_state=MODEL_CONFIG["random_state"])
-        X, y = smote.fit_resample(X, y)
-        print(f"✓ After SMOTE: {len(y)} samples")
-
-    # Adjust selector_k if needed
-    selector_k = min(MODEL_CONFIG["selector_k"], X.shape[1])
-    score_func = mutual_info_classif if MODEL_CONFIG["use_mutual_info"] else f_classif
-    # Set priors for NB to balance
-    priors = [1 - event_rate, event_rate] if event_rate > 0 else None
-    pipeline = Pipeline([
-        ("scaler", PowerTransformer(method="yeo-johnson", standardize=True)),
-        ("selector", SelectKBest(score_func, k=selector_k)),
-        ("classifier", GaussianNB(var_smoothing=MODEL_CONFIG["nb_var_smoothing"], priors=priors))
-    ])
-
-    # Train/test split
+    # Chronological train/test split (no shuffling)
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=MODEL_CONFIG["test_size"],
+        X_all, y_all, test_size=MODEL_CONFIG["test_size"],
         random_state=MODEL_CONFIG["random_state"], shuffle=False
     )
-    pipeline.fit(X_train, y_train)
 
-    # Evaluation
+    # Adjust selector_k if needed and choose score function
+    selector_k = min(MODEL_CONFIG["selector_k"], X_train.shape[1])
+    score_func = mutual_info_classif if MODEL_CONFIG["use_mutual_info"] else f_classif
+
+    # Build imblearn pipeline (SMOTE applied inside CV folds)
+    imb_pipeline = ImbPipeline([
+        ('smote', SMOTE(random_state=MODEL_CONFIG["random_state"])),
+        ('scaler', PowerTransformer(method="yeo-johnson", standardize=True)),
+        ('selector', SelectKBest(score_func, k=selector_k)),
+        ('classifier', GaussianNB(var_smoothing=MODEL_CONFIG["nb_var_smoothing"], priors=None))
+    ])
+
+    # TimeSeries CV object
+    tscv = TimeSeriesSplit(n_splits=MODEL_CONFIG["cv_splits"])
+
+    # Try CV with SMOTE-in-pipeline; if that fails (e.g., not enough positive samples), fall back to no-SMOTE pipeline
+    cv_scores = np.array([np.nan])
+    best_pipeline = None
+
+    try:
+        logger.info("Training partition event rate: %.2f%%", np.mean(y_train) * 100)
+        cv_scores = cross_val_score(imb_pipeline, X_train, y_train, cv=tscv, scoring="f1")
+        logger.info("CV f1 scores (with SMOTE): %s", cv_scores.tolist())
+        best_pipeline = imb_pipeline
+    except Exception as e:
+        logger.warning("SMOTE pipeline CV failed: %s. Falling back to pipeline without SMOTE.", e)
+        # Build pipeline without SMOTE
+        pipeline_no_smote = Pipeline([
+            ('scaler', PowerTransformer(method="yeo-johnson", standardize=True)),
+            ('selector', SelectKBest(score_func, k=selector_k)),
+            ('classifier', GaussianNB(var_smoothing=MODEL_CONFIG["nb_var_smoothing"], priors=None))
+        ])
+        try:
+            cv_scores = cross_val_score(pipeline_no_smote, X_train, y_train, cv=tscv, scoring="f1")
+            logger.info("CV f1 scores (no SMOTE): %s", cv_scores.tolist())
+            best_pipeline = pipeline_no_smote
+        except Exception as e2:
+            logger.error("CV failed for pipeline without SMOTE: %s", e2)
+            raise
+
+    # Fit the chosen pipeline on the full training partition
+    try:
+        best_pipeline.fit(X_train, y_train)
+    except Exception as e:
+        logger.error("Final pipeline fit failed: %s", e)
+        raise
+
+    # Use the fitted pipeline for evaluation and saving
+    pipeline = best_pipeline
+
+    # Evaluation on holdout test partition using the trained pipeline
     y_pred = pipeline.predict(X_test)
     acc = pipeline.score(X_test, y_test)
     report = classification_report(y_test, y_pred, output_dict=True)
     confusion = pd.crosstab(y_test, y_pred, rownames=["Actual"], colnames=["Predicted"])
-    # Cross-validation with F1
-    tscv = TimeSeriesSplit(n_splits=MODEL_CONFIG["cv_splits"])
-    cv_scores = cross_val_score(pipeline, X_train, y_train, cv=tscv, scoring="f1")
 
-    # Save model + metadata
+    # Save model + metadata (include additional metrics optionally later)
     joblib.dump(pipeline, MODEL_PATH)
     meta = {
         "feature_columns": feature_cols,
         "accuracy": acc,
         "classification_report": report,
         "confusion_matrix": confusion.to_dict(),
-        "cv_mean": float(np.mean(cv_scores)),
-        "cv_std": float(np.std(cv_scores)),
+        "cv_mean": float(np.nanmean(cv_scores)),
+        "cv_std": float(np.nanstd(cv_scores)),
         "trained_at": datetime.now().isoformat(),
         "training_data_source": "Meteostat (NAIA Station)",
         "training_samples": len(df)
@@ -264,58 +295,73 @@ def train_from_csv(csv_path):
     with open(METADATA_PATH, "w") as f:
         json.dump(meta, f, indent=2)
 
+    logger.info("✓ Model training complete. Model saved to %s", MODEL_PATH)
     return meta
 
 def predict_from_features(features_dict):
     """Takes weather features dict (parsed from OpenWeather JSON), returns prediction & probability."""
-    print(f"\n🔍 DEBUG: predict_from_features called")
-    print(f"   Features: {list(features_dict.keys())}")
-    
+    logger.debug("🔍 predict_from_features called")
+    logger.debug("   Input feature keys: %s", list(features_dict.keys()))
+
     # Load model and metadata
     try:
         pipeline = joblib.load(MODEL_PATH)
-        print(f"   ✅ Model loaded from {MODEL_PATH}")
+        logger.debug("   ✅ Model loaded from %s", MODEL_PATH)
     except Exception as e:
-        print(f"   ❌ Model load failed: {e}")
+        logger.error("   ❌ Model load failed: %s", e)
         raise
-    
+
     try:
         with open(METADATA_PATH) as f:
             meta = json.load(f)
-        print(f"   ✅ Metadata loaded: {len(meta.get('feature_columns', []))} features")
+        logger.debug("   ✅ Metadata loaded: %d features", len(meta.get('feature_columns', [])))
     except Exception as e:
-        print(f"   ❌ Metadata load failed: {e}")
+        logger.error("   ❌ Metadata load failed: %s", e)
         raise
-    
+
     feature_cols = meta["feature_columns"]
-    print(f"   Expected features: {feature_cols[:5]}...")  # Show first 5
+    logger.debug("   Expected features preview: %s", feature_cols[:5])
 
     df = pd.DataFrame([features_dict])
-    print(f"   ✅ DataFrame created: {df.shape}")
-    
+    logger.debug("   ✅ DataFrame created: %s", df.shape)
+
     df = engineer_features(df)
-    print(f"   ✅ Features engineered: {df.shape}")
-    
-    for col in feature_cols:
-        if col not in df.columns:
-            df[col] = 60.0 if col == "humidity" else 0.0
-    
+    logger.debug("   ✅ Features engineered: %s", df.shape)
+
+    # Strict validation: ensure all expected feature columns exist and are numeric
+    missing = [c for c in feature_cols if c not in df.columns]
+    if missing:
+        logger.error("Missing required feature columns: %s", missing)
+        raise ValueError(f"Missing required feature columns: {missing}")
+
+    # Ensure numeric dtype and finite values
+    for c in feature_cols:
+        if not pd.api.types.is_numeric_dtype(df[c]):
+            try:
+                df[c] = pd.to_numeric(df[c], errors="coerce")
+            except Exception:
+                logger.error("Feature %s cannot be coerced to numeric", c)
+                raise
+
+        if not np.all(np.isfinite(df[c].values)):
+            logger.error("Feature %s contains non-finite values after coercion", c)
+            raise ValueError(f"Feature {c} contains non-finite values")
+
     X = df[feature_cols].values
-    print(f"   ✅ Feature matrix: {X.shape}")
+    logger.debug("   ✅ Feature matrix prepared: %s", X.shape)
 
     try:
         pred = pipeline.predict(X)[0]
         proba = pipeline.predict_proba(X)[0].tolist()
-        print(f"   ✅ ML Prediction: event={pred}, probability={proba[1]:.2f}")
+        logger.info("   ✅ ML Prediction: event=%s, probability=%.3f", pred, proba[1])
     except Exception as e:
-        print(f"   ❌ Prediction failed: {e}")
+        logger.error("   ❌ Prediction failed: %s", e)
         raise
 
     event, hazards = hazard_score(features_dict, explain=True)
     hazard_type = determine_hazard_type(hazards) if event else "None"
-    print(f"   Rules: event={event}, hazard_type={hazard_type}")
+    logger.debug("   Rules: event=%s, hazard_type=%s", event, hazard_type)
 
-    # Fallback: If the MODEL predicts an event, but the rules don't trigger any hazard
     if pred and not hazards:
         hazard_type = "General Hazard (AI detected, not matched to rules)"
 
@@ -327,16 +373,15 @@ def predict_from_features(features_dict):
         "hazards_triggered": hazards if event else [],
         "hazard_type": hazard_type
     }
-    
-    print(f"   ✅ Final result: {result['event']}, {result['hazard_type']}, {result['probability']:.2f}")
-    
-    # ✅ SEND NOTIFICATION IF HAZARD
+
+    logger.info("   ✅ Final result: %s, %s, %.3f", result['event'], result['hazard_type'], result['probability'])
+
+    # Notifications (keep, but NotificationService should be robust to env toggles)
     if int(pred) == 1 and hazard_type in hazard_notification_templates:
-        print(f"   📧 Sending notification for {hazard_type}")
+        logger.info("   📧 Sending notification for %s", hazard_type)
         template = hazard_notification_templates[hazard_type]
 
         notif_service = NotificationService()
-
         notif_service.send_notification(
             title=template["in_app"]["title"],
             message=template["in_app"]["message"],
@@ -346,7 +391,7 @@ def predict_from_features(features_dict):
             sms_recipients=None
         )
     else:
-        print(f"   ℹ️  No notification sent (pred={pred}, hazard_type={hazard_type})")
+        logger.debug("   ℹ️  No notification sent (pred=%s, hazard_type=%s)", pred, hazard_type)
 
     return result
 
