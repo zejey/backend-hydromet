@@ -24,6 +24,11 @@ class OTPResponse(BaseModel):
     data: Optional[dict] = None
 
 
+def to_e164_with_plus(phone_number: str) -> str:
+    phone_number = phone_number.strip()
+    return phone_number if phone_number.startswith("+") else f"+{phone_number}"
+
+
 @router.post("/send", response_model=OTPResponse)
 async def send_otp(request: SendOTPRequest):
     """Send OTP to phone number"""
@@ -88,33 +93,35 @@ async def send_otp(request: SendOTPRequest):
             
             otp_id = cur.fetchone()['id']
         
-                # ✅ Send OTP via iProg SMS API
+        # ✅ Send OTP via TextBee API
         sms_sent = False
         try:
-            iprog_response = requests.post(
-                f"{Config.IPROG_BASE_URL}/sms_messages",
-                headers={"Content-Type": "application/json"},
+            if not Config.TEXTBEE_API_KEY or not Config.TEXTBEE_DEVICE_ID:
+                raise Exception("Missing TEXTBEE_API_KEY or TEXTBEE_DEVICE_ID in environment")
+
+            recipient = to_e164_with_plus(phone_number)
+
+            textbee_response = requests.post(
+                f"{Config.TEXTBEE_BASE_URL}/gateway/devices/{Config.TEXTBEE_DEVICE_ID}/send-sms",
+                headers={
+                    "x-api-key": Config.TEXTBEE_API_KEY,
+                    "Content-Type": "application/json",
+                },
                 json={
-                    "api_token": Config.    _API_TOKEN,
-                    "phone_number": phone_number,
-                    "message": f"Your HydroMet login code is: {otp_code}. Valid for 10 minutes. Do not share this code."
+                    "recipients": [recipient],
+                    "message": f"Your HydroMet login code is: {otp_code}. Valid for 10 minutes. Do not share this code.",
                 },
                 timeout=10
             )
             
-            print(f"📡 iProg Response Status: {iprog_response.status_code}")
-            print(f"📡 iProg Response: {iprog_response.text}")
+            print(f"📡 TextBee Response Status: {textbee_response.status_code}")
+            print(f"📡 TextBee Response: {textbee_response.text}")
             
-            if iprog_response.status_code == 200:
-                response_data = iprog_response.json()
-                if response_data.get('status') == 200:
-                    sms_sent = True
-                    print(f"✅ SMS sent successfully via iProg")
-                    print(f"📱 Message ID: {response_data.get('message_id')}")
-                else:
-                    print(f"⚠️ iProg error: {response_data.get('message')}")
+            if 200 <= textbee_response.status_code < 300:
+                sms_sent = True
+                print("✅ SMS sent successfully via TextBee")
             else:
-                print(f"⚠️ SMS failed with HTTP {iprog_response.status_code}")
+                print(f"⚠️ TextBee error: HTTP {textbee_response.status_code}")
                 
         except Exception as sms_error:
             print(f"⚠️ SMS service error: {sms_error}")
@@ -283,33 +290,35 @@ async def send_otp_registration(request: SendOTPRequest):
             otp_id = cur.fetchone()['id']
             print(f"💾 OTP saved: ID {otp_id}")
         
-        # ✅ Send OTP via iProg SMS API
+        # ✅ Send OTP via TextBee API
         sms_sent = False
         try:
-            iprog_response = requests.post(
-                f"{Config.IPROG_BASE_URL}/sms_messages",
-                headers={"Content-Type": "application/json"},
+            if not Config.TEXTBEE_API_KEY or not Config.TEXTBEE_DEVICE_ID:
+                raise Exception("Missing TEXTBEE_API_KEY or TEXTBEE_DEVICE_ID in environment")
+
+            recipient = to_e164_with_plus(phone_number)
+
+            textbee_response = requests.post(
+                f"{Config.TEXTBEE_BASE_URL}/gateway/devices/{Config.TEXTBEE_DEVICE_ID}/send-sms",
+                headers={
+                    "x-api-key": Config.TEXTBEE_API_KEY,
+                    "Content-Type": "application/json",
+                },
                 json={
-                    "api_token": Config.IPROG_API_TOKEN,
-                    "phone_number": phone_number,
-                    "message": f"Your HydroMet verification code is: {otp_code}. Valid for 10 minutes. Do not share this code."
+                    "recipients": [recipient],
+                    "message": f"Your HydroMet verification code is: {otp_code}. Valid for 10 minutes. Do not share this code.",
                 },
                 timeout=10
             )
             
-            print(f"📡 iProg Response Status: {iprog_response.status_code}")
-            print(f"📡 iProg Response: {iprog_response.text}")
+            print(f"📡 TextBee Response Status: {textbee_response.status_code}")
+            print(f"📡 TextBee Response: {textbee_response.text}")
             
-            if iprog_response.status_code == 200:
-                response_data = iprog_response.json()
-                if response_data.get('status') == 200:
-                    sms_sent = True
-                    print(f"✅ SMS sent successfully via iProg")
-                    print(f"📱 Message ID: {response_data.get('message_id')}")
-                else:
-                    print(f"⚠️ iProg error: {response_data.get('message')}")
+            if 200 <= textbee_response.status_code < 300:
+                sms_sent = True
+                print("✅ SMS sent successfully via TextBee")
             else:
-                print(f"⚠️ SMS failed with HTTP {iprog_response.status_code}")
+                print(f"⚠️ TextBee error: HTTP {textbee_response.status_code}")
                 
         except Exception as sms_error:
             print(f"⚠️ SMS service error: {sms_error}")
