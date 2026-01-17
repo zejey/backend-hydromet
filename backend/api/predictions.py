@@ -160,19 +160,7 @@ async def predict_from_weather_data(request: PredictionRequest):
 async def predict_from_custom_features(request: CustomFeaturesRequest):
     """
     Predict weather hazards from custom weather features
-
-    Use this when you have specific weather measurements
-
-    Request Body:
-    {
-        "features": {
-            "temp_c": 28.5,
-            "pressure_hpa": 1005,
-            "humidity_pct": 85,
-            "wind_speed_ms": 15,
-            "precipitation_mm": 50
-        }
-    }
+    Sends in-app + SMS notification when hazard detected (event == 1)
     """
     try:
         # Convert Pydantic model to dict (Pydantic v2)
@@ -186,11 +174,34 @@ async def predict_from_custom_features(request: CustomFeaturesRequest):
         # Get notification template
         hazard_info = HazardAnalyzer.get_hazard_info(prediction["hazard_type"])
 
+        logger.info(f"Custom prediction: {prediction['hazard_type']} (event={prediction.get('event')}, risk={prediction['risk_level']})")
+
+        # ✅ Send notification if hazard detected
+        if prediction.get("event") == 1:
+            try:
+                from scripts.notification_util import send_event_notification
+
+                logger.info("🚨 Hazard detected! Sending notifications (TEST NUMBER ONLY)...")
+
+                send_event_notification(
+                    title=hazard_info.get("title", f"⚠️ {prediction['hazard_type']} Alert"),
+                    message=hazard_info.get("in_app", f"Weather hazard detected: {prediction['hazard_type']}"),
+                    notif_type="Alert",
+                    status="Active",
+                    send_sms=True,
+                    sms_recipients=["+639XXXXXXXXX"]  # <-- REPLACE with your test number
+                )
+
+                logger.info("✅ Notification function executed")
+            except Exception as notify_error:
+                logger.error(f"❌ Failed to send notifications: {notify_error}", exc_info=True)
+        else:
+            logger.info("ℹ️ No hazard detected, skipping notifications")
+
         return PredictionResponse(
             success=True,
             prediction=prediction,
             notification=hazard_info,
-            # PredictionResponse.features expects a dict, not a Pydantic model instance
             features=request.features.model_dump()
         )
 
