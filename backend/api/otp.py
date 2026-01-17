@@ -24,9 +24,53 @@ class OTPResponse(BaseModel):
     data: Optional[dict] = None
 
 
-def to_e164_with_plus(phone_number: str) -> str:
-    phone_number = phone_number.strip()
-    return phone_number if phone_number.startswith("+") else f"+{phone_number}"
+def format_phone_for_textbee(phone_number: str) -> str:
+    """
+    Convert PH phone numbers to E.164 for TextBee: +639XXXXXXXXX
+
+    Accepts (common PH inputs):
+    - 09XXXXXXXXX
+    - 9XXXXXXXXX
+    - 63XXXXXXXXXX
+    - 639XXXXXXXXX
+    - +63XXXXXXXXXX
+    Returns:
+    - +639XXXXXXXXX
+    """
+    if not phone_number:
+        raise ValueError("Empty phone number")
+
+    s = phone_number.strip()
+
+    # Keep leading + if present, otherwise keep digits only
+    if s.startswith("+"):
+        digits = "+" + "".join(ch for ch in s[1:] if ch.isdigit())
+    else:
+        digits = "".join(ch for ch in s if ch.isdigit())
+
+    # PH local -> E.164
+    if digits.startswith("09") and len(digits) == 11:
+        return "+63" + digits[1:]  # 09xxxxxxxxx -> +639xxxxxxxxx
+
+    if digits.startswith("9") and len(digits) == 10:
+        return "+63" + digits       # 9xxxxxxxxx -> +639xxxxxxxxx
+
+    # Already has country code (no plus)
+    if digits.startswith("63"):
+        rest = digits[2:]
+        if rest.startswith("0"):
+            rest = rest[1:]
+        return "+63" + rest
+
+    # Already E.164
+    if digits.startswith("+63"):
+        rest = digits[3:]
+        if rest.startswith("0"):
+            rest = rest[1:]
+        return "+63" + rest
+
+    # If you ONLY support PH numbers, fail loudly:
+    raise ValueError(f"Invalid PH phone number format for TextBee: {phone_number}")
 
 
 @router.post("/send", response_model=OTPResponse)
@@ -99,7 +143,7 @@ async def send_otp(request: SendOTPRequest):
             if not Config.TEXTBEE_API_KEY or not Config.TEXTBEE_DEVICE_ID:
                 raise Exception("Missing TEXTBEE_API_KEY or TEXTBEE_DEVICE_ID in environment")
 
-            recipient = to_e164_with_plus(phone_number)
+            recipient = format_phone_for_textbee(phone_number)
 
             textbee_response = requests.post(
                 f"{Config.TEXTBEE_BASE_URL}/gateway/devices/{Config.TEXTBEE_DEVICE_ID}/send-sms",
@@ -296,7 +340,7 @@ async def send_otp_registration(request: SendOTPRequest):
             if not Config.TEXTBEE_API_KEY or not Config.TEXTBEE_DEVICE_ID:
                 raise Exception("Missing TEXTBEE_API_KEY or TEXTBEE_DEVICE_ID in environment")
 
-            recipient = to_e164_with_plus(phone_number)
+            recipient = format_phone_for_textbee(phone_number)
 
             textbee_response = requests.post(
                 f"{Config.TEXTBEE_BASE_URL}/gateway/devices/{Config.TEXTBEE_DEVICE_ID}/send-sms",
