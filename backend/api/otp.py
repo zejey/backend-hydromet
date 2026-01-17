@@ -95,10 +95,9 @@ async def send_otp(request: SendOTPRequest):
                 f"{Config.IPROG_BASE_URL}/sms_messages",
                 headers={"Content-Type": "application/json"},
                 json={
-                    "api_token": Config.IPROG_API_TOKEN,
+                    "api_token": Config.    _API_TOKEN,
                     "phone_number": phone_number,
-                    "message": f"Your HydroMet login code is: {otp_code}. Valid for 10 minutes. Do not share this code.",
-                    "sender_name": getattr(Config, "IPROG_SENDER_NAME", "Ka Prets")
+                    "message": f"Your HydroMet login code is: {otp_code}. Valid for 10 minutes. Do not share this code."
                 },
                 timeout=10
             )
@@ -293,8 +292,7 @@ async def send_otp_registration(request: SendOTPRequest):
                 json={
                     "api_token": Config.IPROG_API_TOKEN,
                     "phone_number": phone_number,
-                    "message": f"Your HydroMet verification code is: {otp_code}. Valid for 10 minutes. Do not share this code.",
-                    "sender_name": getattr(Config, "IPROG_SENDER_NAME", "Ka Prets")
+                    "message": f"Your HydroMet verification code is: {otp_code}. Valid for 10 minutes. Do not share this code."
                 },
                 timeout=10
             )

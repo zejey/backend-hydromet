@@ -73,24 +73,42 @@ class OTPManager:
             """, (phone_number,))
     
     def _send_sms(self, phone_number: str, message: str) -> Tuple[bool, Optional[str]]:
-        """Send SMS via iProg SMS API"""
+        """Send SMS via TextBee API"""
         try:
-            # Format phone number for SMS API (639XXXXXXXXX)
-            formatted_phone = format_phone_for_sms(phone_number)
-            
-            params = {
-                'api_token': self.api_token,
-                'message': message,
-                'phone_number': formatted_phone
-            }
-            
-            response = requests.post(self.sms_endpoint, params=params, timeout=10)
-            
-            if response.status_code == 200:
+            formatted_phone = format_phone_for_sms(phone_number)  # e.g. 639XXXXXXXXX
+
+            # TextBee example uses +E164
+            if not formatted_phone.startswith("+"):
+                formatted_phone = f"+{formatted_phone}"
+
+            base_url = getattr(Config, "TEXTBEE_BASE_URL", "https://api.textbee.dev/api/v1")
+            api_key = Config.TEXTBEE_API_KEY
+            device_id = Config.TEXTBEE_DEVICE_ID
+
+            if not api_key or not device_id:
+                return False, "TextBee credentials missing (TEXTBEE_API_KEY / TEXTBEE_DEVICE_ID)"
+
+            url = f"{base_url}/gateway/devices/{device_id}/send-sms"
+
+            response = requests.post(
+                url,
+                json={
+                    "recipients": [formatted_phone],
+                    "message": message,
+                },
+                headers={
+                    "x-api-key": api_key,
+                    "Content-Type": "application/json",
+                },
+                timeout=10,
+            )
+
+            # Consider anything outside 2xx a failure
+            if 200 <= response.status_code < 300:
                 return True, None
-            else:
-                return False, f"SMS API error: {response.status_code} - {response.text}"
-                
+
+            return False, f"TextBee API error: {response.status_code} - {response.text}"
+
         except requests.exceptions.RequestException as e:
             return False, f"SMS sending failed: {str(e)}"
     

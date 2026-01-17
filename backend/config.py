@@ -21,8 +21,9 @@ class Config:
     DB_PORT = os.getenv("PGPORT") or os.getenv("DB_PORT", "5432")
     
     # iProg SMS API
-    IPROG_API_TOKEN = os.getenv("IPROG_API_TOKEN")
-    IPROG_BASE_URL = os.getenv("IPROG_BASE_URL", "https://sms.iprogtech.com/api/v1")     
+    TEXTBEE_API_KEY = os.getenv("TEXTBEE_API_KEY")
+    TEXTBEE_DEVICE_ID = os.getenv("TEXTBEE_DEVICE_ID")
+    TEXTBEE_BASE_URL = os.getenv("TEXTBEE_BASE_URL", "https://api.textbee.dev/api/v1")     
 
     # OTP Settings
     OTP_VALIDITY_MINUTES = int(os.getenv("OTP_VALIDITY_MINUTES", 5))
