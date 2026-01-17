@@ -19,7 +19,30 @@ logger = logging.getLogger(__name__)
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "service-key.json"
+# -------------------------------------------------------------------
+# ✅ Railway-friendly Google credentials handling
+#
+# DO NOT hardcode: os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "service-key.json"
+# because the file won't exist on Railway unless you create it.
+#
+# Instead:
+# - Put the JSON contents into Railway Variables as GOOGLE_APPLICATION_CREDENTIALS_JSON
+# - (Optional) Set GOOGLE_APPLICATION_CREDENTIALS=/tmp/service-key.json
+# This block writes the JSON to a file at runtime.
+# -------------------------------------------------------------------
+creds_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+if creds_json:
+    creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/service-key.json")
+    try:
+        with open(creds_path, "w") as f:
+            f.write(creds_json)
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+        logger.info(f"✅ Wrote Google credentials to {creds_path}")
+    except Exception as e:
+        logger.error(f"❌ Failed to write Google credentials file: {e}")
+else:
+    logger.warning("⚠️ GOOGLE_APPLICATION_CREDENTIALS_JSON not set; Firestore may fail.")
+# -------------------------------------------------------------------
 
 # TextBee Configuration
 TEXTBEE_API_KEY = os.getenv("TEXTBEE_API_KEY")
