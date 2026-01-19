@@ -57,6 +57,6 @@ hazard_notification_templates = {
             "title": "Weather Hazard Detected",
             "message": "Previous messages were sent for testing purposes."
         },
-        "sms": "WEATHER ALERT: Hazardous conditions detected. Monitor updates."
+        "sms": "Previous messages were sent for testing purposes."
     }
 }
