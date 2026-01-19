@@ -55,7 +55,7 @@ hazard_notification_templates = {
     "General Hazard": {
         "in_app": {
             "title": "Weather Hazard Detected",
-            "message": "Unusual hazardous weather conditions detected. Please monitor updates."
+            "message": "Previous messages were sent for testing purposes."
         },
         "sms": "WEATHER ALERT: Hazardous conditions detected. Monitor updates."
     }
