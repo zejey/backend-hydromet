@@ -267,7 +267,7 @@ def send_event_notification(
     sent_to=0,
     dt=None,
     send_sms=True,
-    sms_recipients=["+639762881182"]
+    sms_recipients=None
 ):
     """
     Legacy function for backward compatibility

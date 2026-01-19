@@ -189,7 +189,7 @@ async def predict_from_custom_features(request: CustomFeaturesRequest):
                     notif_type="Alert",
                     status="Active",
                     send_sms=True,
-                    sms_recipients=["+639092418164", "+639762881182"]  # <-- REPLACE with your test number
+                    sms_recipients=None # <-- REPLACE with your test number
                 )
 
                 logger.info("✅ Notification function executed")
