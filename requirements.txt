@@ -29,6 +29,7 @@ google-cloud-firestore
 # Additional
 python-multipart
 email-validator
-
+pytz
+   
 # Email
 sendgrid
