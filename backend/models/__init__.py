@@ -15,8 +15,17 @@ from backend.models.hotline import (
     EmergencyHotline, HotlineCreate, HotlineUpdate, HotlineResponse
 )
 from backend.models.safety import (
-    SafetyCategory, CategoryCreate, CategoryUpdate, CategoryResponse,
-    SafetyTip, TipCreate, TipUpdate, TipResponse
+    SafetyCategory,
+    CategoryCreate,
+    CategoryUpdate,
+    SafetyTip,
+    SafetyTipWithDetails,
+    SafetyTipDetail,
+    TipCreate,
+    TipUpdate,
+    PreventiveMeasure,
+    MeasureCreate,
+    MeasureUpdate,
 )
 from backend.models.otp import OTPRequest, OTPVerifyRequest, OTPResponse
 from backend.models.prediction import (
@@ -50,8 +59,17 @@ __all__ = [
     'EmergencyHotline', 'HotlineCreate', 'HotlineUpdate', 'HotlineResponse',
     
     # Safety models
-    'SafetyCategory', 'CategoryCreate', 'CategoryUpdate', 'CategoryResponse',
-    'SafetyTip', 'TipCreate', 'TipUpdate', 'TipResponse',
+    "SafetyCategory",
+    "CategoryCreate",
+    "CategoryUpdate",
+    "SafetyTip",
+    "SafetyTipWithDetails",
+    "SafetyTipDetail",
+    "TipCreate",
+    "TipUpdate",
+    "PreventiveMeasure",
+    "MeasureCreate",
+    "MeasureUpdate",
     
     # OTP models
     'OTPRequest', 'OTPVerifyRequest', 'OTPResponse',
