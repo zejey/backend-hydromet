@@ -1,356 +1,272 @@
 """
-Weather Hazard Prediction API Endpoints
-ML-based weather hazard prediction and forecasting
+Weather Data Proxy API
+Securely fetches weather data from OpenWeather API without exposing API key
 """
 
 from fastapi import APIRouter, HTTPException, status, Query
 from typing import Optional
+import httpx
+import os
 from datetime import datetime
 
-from backend.models.prediction import (
-    PredictionRequest,
-    PredictionResponse,
-    ForecastPredictionRequest,
-    ForecastPredictionResponse,
-    ForecastSummary,
-    ModelInfo,
-    HealthCheckResponse,
-    CustomFeaturesRequest
-)
-from backend.ml.predictor import WeatherPredictor
-from backend.ml.hazard_analyzer import HazardAnalyzer
-from backend.ml.model_manager import ModelManager
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/predictions", tags=["Weather Predictions"])
+router = APIRouter(prefix="/api/weather", tags=["Weather Data"])
 
-# Initialize predictor
-predictor = WeatherPredictor()
+# Load API key from environment variable
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
+OPENWEATHER_BASE_URL = "https://api.openweathermap.org/data/2.5"
+OPENWEATHER_GEO_URL = "https://api.openweathermap.org/geo/1.0"
+
+if not OPENWEATHER_API_KEY:
+    logger.warning("⚠️ OPENWEATHER_API_KEY not set in environment variables")
 
 
-@router.get("/health", response_model=HealthCheckResponse)
-async def health_check():
-    """
-    Check if ML model is ready and get model information
-    
-    Returns model metadata and readiness status
-    """
+async def fetch_from_openweather(url: str) -> dict:
+    """Helper function to fetch data from OpenWeather API"""
     try:
-        model_manager = ModelManager()
-        model_info_dict = model_manager.get_model_info()
-        
-        return HealthCheckResponse(
-            success=True,
-            status="ready" if model_info_dict["ready"] else "not_ready",
-            model_ready=model_info_dict["ready"],
-            model_info=ModelInfo(**model_info_dict) if model_info_dict["ready"] else None,
-            timestamp=datetime.utcnow().isoformat()
-        )
-        
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"OpenWeather API error: {e.response.status_code} - {e.response.text}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Health check failed: {str(e)}"
+            status_code=e.response.status_code,
+            detail=f"Weather API error: {e.response.text}"
         )
-
-
-@router.post("/predict", response_model=PredictionResponse)
-async def predict_from_weather_data(request: PredictionRequest):
-    """
-    Predict weather hazards from raw weather API data
-    
-    Supports both OpenWeather and WeatherLink data formats
-    
-    Request Body:
-    {
-        "weather_data": {...},  // Raw API response
-        "source": "openweather"  // or "weatherlink"
-    }
-    
-    Response:
-    {
-        "success": true,
-        "prediction": {
-            "event": 1,
-            "probability": 0.87,
-            "hazard_type": "Tropical Storm",
-            "hazards": ["heavy rain", "strong wind"],
-            "risk_level": "high"
-        },
-        "notification": {
-            "title": "⛈️ Tropical Storm Warning",
-            "in_app": "...",
-            "sms": "..."
-        }
-    }
-    """
-    try:
-        # Extract features based on source
-        if request.source == "openweather":
-            features = predictor.extract_features_from_openweather(request.weather_data)
-        elif request.source == "weatherlink":
-            features = predictor.extract_features_from_weatherlink(request.weather_data)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid source: {request.source}. Use 'openweather' or 'weatherlink'"
-            )
-        
-        # Make prediction
-        prediction = predictor.predict(features)
-        
-        # Add risk level
-        prediction["risk_level"] = HazardAnalyzer.get_risk_level(prediction)
-        
-        # Get notification template
-        hazard_info = HazardAnalyzer.get_hazard_info(prediction["hazard_type"])
-        
-        logger.info(f"Prediction made: {prediction['hazard_type']} (risk={prediction['risk_level']})")
-        
-        return PredictionResponse(
-            success=True,
-            prediction=prediction,
-            notification=hazard_info,
-            features=features
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Prediction failed: {e}", exc_info=True)
+    except httpx.RequestError as e:
+        logger.error(f"Request error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Prediction failed: {str(e)}"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Weather service temporarily unavailable"
         )
 
 
-@router.post("/predict-custom", response_model=PredictionResponse)
-async def predict_from_custom_features(request: CustomFeaturesRequest):
-    """
-    Predict weather hazards from custom weather features
-    
-    Use this when you have specific weather measurements
-    
-    Request Body:
-    {
-        "features": {
-            "temp_c": 28.5,
-            "pressure_hpa": 1005,
-            "humidity_pct": 85,
-            "wind_speed_ms": 15,
-            "precipitation_mm": 50
-        }
-    }
-    """
-    try:
-        # Convert Pydantic model to dict
-        features = request.features.dict()
-        features["timestamp"] = datetime.utcnow()
-        
-        # Make prediction
-        prediction = predictor.predict(features)
-        prediction["risk_level"] = HazardAnalyzer.get_risk_level(prediction)
-        
-        # Get notification template
-        hazard_info = HazardAnalyzer.get_hazard_info(prediction["hazard_type"])
-        
-        return PredictionResponse(
-            success=True,
-            prediction=prediction,
-            notification=hazard_info,
-            features=request.features
-        )
-        
-    except Exception as e:
-        logger.error(f"Custom prediction failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Prediction failed: {str(e)}"
-        )
-
-
-@router.post("/forecast", response_model=ForecastPredictionResponse)
-async def predict_forecast(request: ForecastPredictionRequest):
-    """
-    Predict hazards for multiple forecast time points
-    
-    Analyzes a list of weather forecasts and predicts hazards
-    
-    Request Body:
-    {
-        "forecasts": [
-            {...},  // OpenWeather forecast data point 1
-            {...},  // OpenWeather forecast data point 2
-            ...
-        ],
-        "source": "openweather"
-    }
-    
-    Response includes:
-    - Total predictions
-    - Number of hazard events
-    - List of all predictions
-    - Summary of hazards
-    """
-    try:
-        # Make batch predictions
-        predictions = predictor.predict_batch(request.forecasts, request.source)
-        
-        # Count hazard events
-        hazard_events = [p for p in predictions if p["prediction"]["event"] == 1]
-        
-        # Add risk levels and notifications
-        for pred in predictions:
-            pred["prediction"]["risk_level"] = HazardAnalyzer.get_risk_level(pred["prediction"])
-            pred["notification"] = HazardAnalyzer.get_hazard_info(pred["prediction"]["hazard_type"])
-        
-        # Create summary
-        summary = _create_forecast_summary(predictions, hazard_events)
-        
-        logger.info(f"Forecast predictions: {len(hazard_events)}/{len(predictions)} hazard events")
-        
-        return ForecastPredictionResponse(
-            success=True,
-            total_predictions=len(predictions),
-            hazard_events=len(hazard_events),
-            predictions=predictions,
-            summary=summary
-        )
-        
-    except Exception as e:
-        logger.error(f"Forecast prediction failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Forecast prediction failed: {str(e)}"
-        )
-
-
-@router.get("/forecast/summary", response_model=ForecastSummary)
-async def get_forecast_summary(
-    source: str = Query(default="openweather", description="Weather data source"),
-    hours: int = Query(default=120, description="Forecast duration in hours (default 120 = 5 days)")
+@router.get("/current")
+async def get_current_weather(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
+    units: str = Query(default="metric", description="Units of measurement (metric, imperial)")
 ):
     """
-    Get summary of hazards in upcoming forecast period
-    
-    Fetches forecast from OpenWeather API and summarizes hazards
+    Get current weather by coordinates
     
     Query Parameters:
-    - source: "openweather" or "weatherlink"
-    - hours: Forecast duration (default 120 hours = 5 days)
+    - lat: Latitude (e.g., 14.3583)
+    - lon: Longitude (e.g., 121.0167)
+    - units: metric (Celsius) or imperial (Fahrenheit)
     
-    Response:
-    {
-        "total_records": 40,
-        "hazard_events_count": 5,
-        "hazard_types": ["Flood Risk", "Windstorm"],
-        "high_risk_count": 2,
-        "next_hazard": {...},
-        "timeline": [...]
-    }
+    Example:
+    GET /api/weather/current?lat=14.3583&lon=121.0167
     """
-    try:
-        from backend.ml.weather_client import OpenWeatherClient
-        
-        # Fetch forecast
-        client = OpenWeatherClient()
-        cnt = min(hours // 3, 40)  # OpenWeather gives 3-hour intervals, max 40 points
-        forecasts = client.get_forecast(cnt=cnt)
-        
-        # Make predictions
-        predictions = predictor.predict_batch(forecasts, source)
-        
-        # Filter hazard events
-        hazard_events = [p for p in predictions if p["prediction"]["event"] == 1]
-        
-        # Add risk levels
-        for pred in hazard_events:
-            pred["prediction"]["risk_level"] = HazardAnalyzer.get_risk_level(pred["prediction"])
-        
-        # Create summary
-        summary = _create_forecast_summary(predictions, hazard_events)
-        
-        return ForecastSummary(**summary)
-        
-    except Exception as e:
-        logger.error(f"Forecast summary failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Forecast summary failed: {str(e)}"
-        )
-
-
-@router.get("/model/info", response_model=ModelInfo)
-async def get_model_info():
-    """
-    Get detailed ML model information
+    url = f"{OPENWEATHER_BASE_URL}/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units={units}"
     
-    Returns:
-    - Training timestamp
-    - Model accuracy
-    - Cross-validation scores
-    - Feature count
-    - Model path
-    """
-    try:
-        model_info = predictor.get_model_info()
-        
-        if not model_info["ready"]:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Model not trained yet. Please train the model first."
-            )
-        
-        return ModelInfo(**model_info)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to get model info: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get model info: {str(e)}"
-        )
-
-
-def _create_forecast_summary(predictions: list, hazard_events: list) -> dict:
-    """Create summary of forecast predictions"""
-    
-    # Get unique hazard types
-    hazard_types = list(set([
-        p["prediction"]["hazard_type"] 
-        for p in hazard_events 
-        if p["prediction"]["hazard_type"] != "None"
-    ]))
-    
-    # Count high-risk events
-    high_risk_count = len([
-        p for p in hazard_events 
-        if HazardAnalyzer.get_risk_level(p["prediction"]) in ["high", "critical"]
-    ])
-    
-    # Get next hazard
-    next_hazard = hazard_events[0] if hazard_events else None
-    
-    # Create timeline of hazard events
-    timeline = [
-        {
-            "timestamp": p["timestamp"],
-            "hazard_type": p["prediction"]["hazard_type"],
-            "risk_level": HazardAnalyzer.get_risk_level(p["prediction"]),
-            "probability": p["prediction"]["probability"]
-        }
-        for p in hazard_events
-    ]
+    logger.info(f"Fetching current weather for ({lat}, {lon})")
+    data = await fetch_from_openweather(url)
     
     return {
-        "total_records": len(predictions),
-        "hazard_events_count": len(hazard_events),
-        "hazard_types": hazard_types,
-        "high_risk_count": high_risk_count,
-        "next_hazard": next_hazard,
-        "timeline": timeline
+        "success": True,
+        "data": data,
+        "timestamp": datetime.utcnow().isoformat()
     }
+
+
+@router.get("/current/city")
+async def get_current_weather_by_city(
+    city: str = Query(..., description="City name"),
+    units: str = Query(default="metric", description="Units of measurement")
+):
+    """
+    Get current weather by city name
+    
+    Query Parameters:
+    - city: City name (e.g., "San Pedro")
+    - units: metric or imperial
+    
+    Example:
+    GET /api/weather/current/city?city=San Pedro
+    """
+    url = f"{OPENWEATHER_BASE_URL}/weather?q={city}&appid={OPENWEATHER_API_KEY}&units={units}"
+    
+    logger.info(f"Fetching current weather for city: {city}")
+    data = await fetch_from_openweather(url)
+    
+    return {
+        "success": True,
+        "data": data,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/forecast")
+async def get_forecast(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
+    units: str = Query(default="metric", description="Units of measurement"),
+    cnt: Optional[int] = Query(default=None, description="Number of timestamps (max 40)")
+):
+    """
+    Get 5-day/3-hour forecast by coordinates
+    
+    Query Parameters:
+    - lat: Latitude
+    - lon: Longitude
+    - units: metric or imperial
+    - cnt: Number of forecast points (optional, max 40)
+    
+    Returns 3-hour interval forecasts for up to 5 days
+    
+    Example:
+    GET /api/weather/forecast?lat=14.3583&lon=121.0167&cnt=24
+    """
+    url = f"{OPENWEATHER_BASE_URL}/forecast?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units={units}"
+    
+    if cnt:
+        url += f"&cnt={min(cnt, 40)}"  # Max 40 points
+    
+    logger.info(f"Fetching forecast for ({lat}, {lon})")
+    data = await fetch_from_openweather(url)
+    
+    return {
+        "success": True,
+        "data": data,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/air-quality")
+async def get_air_quality(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude")
+):
+    """
+    Get air pollution data by coordinates
+    
+    Query Parameters:
+    - lat: Latitude
+    - lon: Longitude
+    
+    Returns Air Quality Index (AQI) and pollutant levels
+    
+    Example:
+    GET /api/weather/air-quality?lat=14.3583&lon=121.0167
+    """
+    url = f"{OPENWEATHER_BASE_URL}/air_pollution?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}"
+    
+    logger.info(f"Fetching air quality for ({lat}, {lon})")
+    data = await fetch_from_openweather(url)
+    
+    return {
+        "success": True,
+        "data": data,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/geocoding/search")
+async def search_location(
+    q: str = Query(..., description="City name to search"),
+    limit: int = Query(default=5, description="Number of results (max 5)")
+):
+    """
+    Search for city coordinates by name
+    
+    Query Parameters:
+    - q: City name (e.g., "San Pedro")
+    - limit: Number of results (default 5)
+    
+    Returns list of matching locations with coordinates
+    
+    Example:
+    GET /api/weather/geocoding/search?q=San Pedro&limit=5
+    """
+    url = f"{OPENWEATHER_GEO_URL}/direct?q={q}&limit={min(limit, 5)}&appid={OPENWEATHER_API_KEY}"
+    
+    logger.info(f"Searching location: {q}")
+    data = await fetch_from_openweather(url)
+    
+    return {
+        "success": True,
+        "data": data,
+        "count": len(data),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/geocoding/reverse")
+async def reverse_geocode(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
+    limit: int = Query(default=1, description="Number of results")
+):
+    """
+    Get location name from coordinates (reverse geocoding)
+    
+    Query Parameters:
+    - lat: Latitude
+    - lon: Longitude
+    - limit: Number of results (default 1)
+    
+    Returns location names for given coordinates
+    
+    Example:
+    GET /api/weather/geocoding/reverse?lat=14.3583&lon=121.0167
+    """
+    url = f"{OPENWEATHER_GEO_URL}/reverse?lat={lat}&lon={lon}&limit={limit}&appid={OPENWEATHER_API_KEY}"
+    
+    logger.info(f"Reverse geocoding: ({lat}, {lon})")
+    data = await fetch_from_openweather(url)
+    
+    return {
+        "success": True,
+        "data": data,
+        "count": len(data),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/health")
+async def weather_health_check():
+    """
+    Check if weather API is accessible
+    
+    Returns:
+    - API key status
+    - OpenWeather API connectivity
+    """
+    has_api_key = bool(OPENWEATHER_API_KEY)
+    
+    if not has_api_key:
+        return {
+            "success": False,
+            "status": "error",
+            "message": "OpenWeather API key not configured",
+            "api_key_set": False
+        }
+    
+    try:
+        # Test API with a simple request (San Pedro coordinates)
+        url = f"{OPENWEATHER_BASE_URL}/weather?lat=14.3583&lon=121.0167&appid={OPENWEATHER_API_KEY}&units=metric"
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+        
+        return {
+            "success": True,
+            "status": "operational",
+            "message": "Weather API is accessible",
+            "api_key_set": True,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Weather API health check failed: {e}")
+        return {
+            "success": False,
+            "status": "error",
+            "message": f"Weather API error: {str(e)}",
+            "api_key_set": True
+        }
