@@ -68,14 +68,13 @@ def hazard_score_v2(
         if "timestamp" in row:
             try:
                 if isinstance(row["timestamp"], str):
-                    from datetime import datetime
                     dt = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
                     month = dt.month
                 elif hasattr(row["timestamp"], "month"):
                     month = row["timestamp"].month
                 else:
                     month = datetime.now().month
-            except:
+            except (ValueError, TypeError):
                 month = datetime.now().month
         else:
             month = datetime.now().month
@@ -121,7 +120,7 @@ def hazard_score_v2(
         pressure = pressure.get("pressure", 1013) or 1013
     try:
         pressure = float(pressure or 1013)
-    except:
+    except (ValueError, TypeError):
         pressure = 1013
     
     # Calculate score and hazards
@@ -208,7 +207,7 @@ def hazard_score_v2(
         }
     elif temp >= heat_thresh[2]:  # 95th percentile
         score += 2.5
-        hazards.append("very extreme heat")
+        hazards.append("severe heat")
         details["heat"] = {
             "value": temp,
             "threshold_crossed": f"95th percentile ({monthly_thresh['temp_c'][2]:.1f}°C)",

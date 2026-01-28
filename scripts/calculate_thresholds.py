@@ -39,7 +39,11 @@ def calculate_thresholds(
     if filter_hazard_days and "is_hazard" in df.columns:
         original_len = len(df)
         df = df[df["is_hazard"] == False].copy()
-        print(f"   Filtered {original_len - len(df)} hazard days")
+        filtered_count = original_len - len(df)
+        print(f"   Filtered {filtered_count} hazard days")
+        
+        if len(df) == 0:
+            raise ValueError("All data was filtered out as hazard days. Cannot compute thresholds from empty dataset.")
     
     # Map column names (support various formats)
     col_map = {
@@ -84,9 +88,9 @@ def calculate_thresholds(
         temp_thresholds = np.percentile(month_data["temp"], percentiles).tolist()
         
         # For pressure, we want LOW pressure thresholds (inverted)
-        # So we calculate the inverse percentiles (25, 10, 5, 1)
-        pressure_inv_percentiles = [100 - p for p in percentiles]
-        pressure_thresholds = np.percentile(month_data["pressure"], pressure_inv_percentiles).tolist()
+        # So we calculate the lower percentiles (25, 10, 5, 1)
+        pressure_lower_percentiles = [100 - p for p in percentiles]
+        pressure_thresholds = np.percentile(month_data["pressure"], pressure_lower_percentiles).tolist()
         
         monthly_thresholds[str(month)] = {
             "precipitation_mm": [round(x, 1) for x in rain_thresholds],
