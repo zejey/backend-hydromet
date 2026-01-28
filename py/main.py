@@ -34,7 +34,8 @@ from backend.api import (
     government_agency_router,
     admin_invites_router,
     auth_password_reset_router,
-    preventive_measures_router
+    preventive_measures_router,
+    client_config_router
 )
 
 # Validate configuration
@@ -87,6 +88,7 @@ app.include_router(government_agency_router)
 app.include_router(admin_invites_router)
 app.include_router(auth_password_reset_router)
 app.include_router(preventive_measures_router)
+app.include_router(client_config_router)      # /api/client-config/* (NEW)
 
 
 @app.get("/")
@@ -128,6 +130,13 @@ async def root():
                 "forecast_summary": "GET /api/predictions/forecast/summary",
                 "model_info": "GET /api/predictions/model/info"
             },
+            "client_config": {
+                "list": "GET /api/client-config/",
+                "get": "GET /api/client-config/{client_id}",
+                "create": "POST /api/client-config/",
+                "update": "PUT /api/client-config/{client_id}",
+                "delete": "DELETE /api/client-config/{client_id}"
+            },
             "weather": {
                 "current": "GET /api/weather/current",
                 "forecast": "GET /api/weather/forecast",
@@ -161,6 +170,8 @@ async def root():
         "features": [
             "OTP Authentication with SMS",
             "ML-based Weather Hazard Prediction",
+            "Data-Driven Percentile Thresholds",
+            "Client-Specific Threshold Configuration",
             "Real-time Weather Data (OpenWeather & WeatherLink)",
             "5-Day Weather Forecast with Predictions",
             "Emergency Hotlines Management",
