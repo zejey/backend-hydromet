@@ -13,6 +13,9 @@ BASE_DIR = Path(__file__).parent
 MODEL_PATH = os.getenv("MODEL_PATH", "model.pkl")
 METADATA_PATH = os.getenv("METADATA_PATH", "model_metadata.json")
 
+# Thresholds path (for dynamic percentile-based thresholds)
+THRESHOLDS_PATH = os.getenv("THRESHOLDS_PATH", None)  # Set to JSON file path when available
+
 # Model configuration
 MODEL_CONFIG = {
     "test_size": 0.2,
@@ -24,6 +27,9 @@ MODEL_CONFIG = {
 }
 
 # Hazard thresholds (based on meteorological data)
+# DEPRECATED: These hardcoded thresholds are being replaced by data-driven percentile thresholds
+# For new code, use hazard_score_v2() with dynamic thresholds from JSON files
+# See: scripts/hazard_score_v2.py and thresholds/README.md
 HAZARD_THRESHOLDS = {
     "precipitation_mm": [20, 50, 100, 150],
     "wind_speed_ms": [15, 20, 25, 30],

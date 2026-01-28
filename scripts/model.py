@@ -19,11 +19,26 @@ from notification_mapping import hazard_notification_templates
 from notification_util import NotificationService
 from logger_util import get_logger
 
+# Import new hazard_score_v2 for dynamic thresholds
+try:
+    from hazard_score_v2 import hazard_score_v2
+except ImportError:
+    # If import fails, define a placeholder
+    def hazard_score_v2(*args, **kwargs):
+        raise NotImplementedError("hazard_score_v2 not available. Install required dependencies.")
+
 logger = get_logger(__name__)
 
 # ----------- Feature Engineering & Hazard Scoring -----------
 
 def hazard_score(row, thresholds=HAZARD_THRESHOLDS, explain=False):
+    """
+    DEPRECATED: This function uses hardcoded thresholds.
+    For new code, use hazard_score_v2() from scripts/hazard_score_v2.py
+    which supports dynamic percentile-based thresholds and client multipliers.
+    
+    This function is kept for backward compatibility with existing code.
+    """
     score = 0.0
     hazards = []
 
