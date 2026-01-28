@@ -6,9 +6,16 @@ Version 2 - Uses percentile-based thresholds + client multipliers
 import os
 from datetime import datetime
 from typing import Tuple, Dict, List, Optional
-from scripts.threshold_loader import ThresholdLoader
-from scripts.client_config_db import ClientConfigManager
-from scripts.logger_util import get_logger
+
+# Conditional imports to handle different execution contexts
+try:
+    from threshold_loader import ThresholdLoader
+    from client_config_db import ClientConfigManager
+    from logger_util import get_logger
+except ImportError:
+    from scripts.threshold_loader import ThresholdLoader
+    from scripts.client_config_db import ClientConfigManager
+    from scripts.logger_util import get_logger
 
 logger = get_logger(__name__)
 

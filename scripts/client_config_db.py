@@ -5,8 +5,14 @@ Database operations for client threshold configs
 
 import os
 from typing import Dict, Optional
-from scripts.database import DatabaseManager
-from scripts.logger_util import get_logger
+
+# Conditional imports to avoid circular dependencies
+try:
+    from database import DatabaseManager
+    from logger_util import get_logger
+except ImportError:
+    from scripts.database import DatabaseManager
+    from scripts.logger_util import get_logger
 
 logger = get_logger(__name__)
 
