@@ -73,18 +73,18 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
     expires_at = created_at + timedelta(hours=24)
     
     with get_db_cursor() as cur:
-        # Check for existing admin or pending invite
+        # Check for existing admin
         cur.execute("SELECT 1 FROM admin WHERE email = %s", (invite.email,))
         if cur.fetchone():
             raise HTTPException(status_code=409, detail="Admin with this email already exists.")
         
+        # DELETE old unused invites for this email (instead of raising error)
         cur.execute(
-            "SELECT 1 FROM admin_invites WHERE email = %s AND used = false AND expires_at > now()", 
+            "DELETE FROM admin_invites WHERE email = %s AND used = false",
             (invite.email,)
         )
-        if cur.fetchone():
-            raise HTTPException(status_code=409, detail="Invite already exists and is still valid.")
         
+        # Now insert the new invite
         cur.execute(
             """
             INSERT INTO admin_invites (email, role, token, created_at, expires_at, used, invited_by)
@@ -95,10 +95,7 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
         )
         res = cur.fetchone()
     
-    # Generate invite link
     invite_link = f"{FRONTEND_URL}/set-password?token={token}"
-    
-    # Send email in background
     background_tasks.add_task(send_invite_email, invite.email, invite_link)
     
     return AdminInviteResponse(
