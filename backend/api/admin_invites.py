@@ -17,9 +17,9 @@ from sib_api_v3_sdk.rest import ApiException
 router = APIRouter(prefix='/api/admin-invites', tags=['AdminInvites'])
 
 # Brevo configuration
-BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
-FROM_EMAIL = os.environ.get("BREVO_SENDER", "")
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:8080")
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
+FROM_EMAIL = os.environ.get("BREVO_SENDER")
+FRONTEND_URL = os.environ.get("FRONTEND_URL")
 
 def send_invite_email(email: str, link: str):
     """Send the invite email using Brevo (Sendinblue)"""
