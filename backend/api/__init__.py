@@ -36,5 +36,5 @@ __all__ = [
     'government_agency_router',
     'admin_invites_router',
     'auth_password_reset_router',
-    'preventive_measures_router'
+    'preventive_measures_router',
 ]
