@@ -1,4 +1,4 @@
-import os  # ← ADD THIS
+import os
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -95,7 +95,8 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
         )
         res = cur.fetchone()
     
-    invite_link = f"{FRONTEND_URL}/set-password?token={token}"
+    # FIXED: Add /#/ for hash routing
+    invite_link = f"{FRONTEND_URL}/#/set-password?token={token}"
     background_tasks.add_task(send_invite_email, invite.email, invite_link)
     
     return AdminInviteResponse(
