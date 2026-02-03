@@ -78,31 +78,33 @@ async def forgot_password(req: ForgotPasswordRequest, background_tasks: Backgrou
     expires_at = created_at + timedelta(hours=RESET_TOKEN_EXPIRY_HOURS)
 
     with get_db_cursor() as cur:
-        # Check if admin exists (optional - for privacy you may always send success)
+        # Check if admin exists
         cur.execute("SELECT 1 FROM admin WHERE email = %s", (email,))
         user_exists = bool(cur.fetchone())
 
-        # Delete any old unused tokens for this email
-        cur.execute("DELETE FROM auth_password_resets WHERE email = %s AND used = false", (email,))
+        # Only create token and send email if user exists
+        if user_exists:
+            # Delete any old unused tokens for this email
+            cur.execute("DELETE FROM auth_password_resets WHERE email = %s AND used = false", (email,))
 
-        # Insert new token
-        cur.execute(
-            """
-            INSERT INTO auth_password_resets (email, token, created_at, expires_at, used)
-            VALUES (%s, %s, %s, %s, %s)
-            RETURNING id;
-            """,
-            (email, token, created_at, expires_at, False),
-        )
+            # Insert new token
+            cur.execute(
+                """
+                INSERT INTO auth_password_resets (email, token, created_at, expires_at, used)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id;
+                """,
+                (email, token, created_at, expires_at, False),
+            )
 
-    # Build frontend link with hash routing
-    base = FRONTEND_URL.rstrip("/")
-    reset_link = f"{base}/#/reset-password?token={token}"
+            # Build frontend link with hash routing
+            base = FRONTEND_URL.rstrip("/")
+            reset_link = f"{base}/#/reset-password?token={token}"
 
-    # Send email in background
-    background_tasks.add_task(send_reset_email, email, reset_link)
+            # Send email in background
+            background_tasks.add_task(send_reset_email, email, reset_link)
 
-    # For security, always return success (don't reveal if email exists)
+    # Always return the same message (for security - don't reveal if email exists)
     return GenericResponse(
         success=True, 
         message="If this email exists, a reset link has been sent."
