@@ -102,55 +102,55 @@ class OTPManager:
         except requests.exceptions.RequestException as e:
             return False, f"SMS sending failed: {str(e)}"    
 
-def send_otp(self, phone_number: str) -> Tuple[bool, str, Optional[dict]]:
-    """Generate and send OTP to phone number"""
-    try:
-        # Check rate limit
-        is_allowed, rate_limit_msg = self._check_rate_limit(phone_number)
-        if not is_allowed:
-            return False, rate_limit_msg, None
+    def send_otp(self, phone_number: str) -> Tuple[bool, str, Optional[dict]]:
+        """Generate and send OTP to phone number"""
+        try:
+            # Check rate limit
+            is_allowed, rate_limit_msg = self._check_rate_limit(phone_number)
+            if not is_allowed:
+                return False, rate_limit_msg, None
 
-        # Invalidate previous OTPs
-        self._invalidate_previous_otps(phone_number)
+            # Invalidate previous OTPs
+            self._invalidate_previous_otps(phone_number)
 
-        # Generate OTP
-        otp_code = self._generate_otp()
-        hashed_otp = self._hash_otp(otp_code)
+            # Generate OTP
+            otp_code = self._generate_otp()
+            hashed_otp = self._hash_otp(otp_code)
 
-        # Store in database
-        with get_db_cursor() as cur:
-            expires_at = datetime.utcnow() + timedelta(minutes=self.otp_validity_minutes)
+            # Store in database
+            with get_db_cursor() as cur:
+                expires_at = datetime.utcnow() + timedelta(minutes=self.otp_validity_minutes)
 
-            cur.execute("""
-                INSERT INTO otp_requests 
-                (phone_number, otp_hash, expires_at, attempts_left, created_at)
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING id, expires_at
-            """, (phone_number, hashed_otp, expires_at, self.max_attempts, datetime.utcnow()))
+                cur.execute("""
+                    INSERT INTO otp_requests 
+                    (phone_number, otp_hash, expires_at, attempts_left, created_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id, expires_at
+                """, (phone_number, hashed_otp, expires_at, self.max_attempts, datetime.utcnow()))
 
-            result = cur.fetchone()
+                result = cur.fetchone()
 
-            # ✅ FOR DEVELOPMENT: Print OTP to console
-            print(f"🔐 OTP CODE (DEV ONLY): {otp_code} for {phone_number}")
+                # ✅ FOR DEVELOPMENT: Print OTP to console
+                print(f"🔐 OTP CODE (DEV ONLY): {otp_code} for {phone_number}")
 
-            # Send SMS
-            message = f"Your OTP is: {otp_code}. Valid for {self.otp_validity_minutes} minutes. Do not share this code."
-            sms_success, sms_error = self._send_sms(phone_number, message)
+                # Send SMS
+                message = f"Your OTP is: {otp_code}. Valid for {self.otp_validity_minutes} minutes. Do not share this code."
+                sms_success, sms_error = self._send_sms(phone_number, message)
 
-            if not sms_success:
-                # ✅ Still show OTP in console if SMS fails
-                print(f"⚠️ SMS FAILED - Use this OTP for testing: {otp_code}")
-                return False, f"OTP generated but SMS failed: {sms_error}", None
+                if not sms_success:
+                    # ✅ Still show OTP in console if SMS fails
+                    print(f"⚠️ SMS FAILED - Use this OTP for testing: {otp_code}")
+                    return False, f"OTP generated but SMS failed: {sms_error}", None
 
-            return True, "OTP sent successfully", {
-                "otp_id": result['id'],
-                "phone_number": phone_number,
-                "expires_at": result['expires_at'].isoformat(),
-                "validity_minutes": self.otp_validity_minutes
-            }
+                return True, "OTP sent successfully", {
+                    "otp_id": result['id'],
+                    "phone_number": phone_number,
+                    "expires_at": result['expires_at'].isoformat(),
+                    "validity_minutes": self.otp_validity_minutes
+                }
 
-    except Exception as e:
-        return False, f"Error sending OTP: {str(e)}", None
+        except Exception as e:
+            return False, f"Error sending OTP: {str(e)}", None
 
     def verify_otp(self, phone_number: str, otp_code: str) -> Tuple[bool, str, Optional[dict]]:
         """Verify OTP code for phone number"""
