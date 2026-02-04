@@ -81,7 +81,11 @@ class OTPManager:
             return email
         
         local, domain = email.split('@', 1)
-        if len(local) <= 2:
+        if len(local) == 0:
+            return email  # Invalid email, return as-is
+        elif len(local) == 1:
+            masked_local = local[0] + '*'
+        elif len(local) == 2:
             masked_local = local[0] + '*'
         else:
             masked_local = local[0] + '*' * (len(local) - 2) + local[-1]
