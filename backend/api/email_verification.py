@@ -5,7 +5,7 @@ Handles email verification OTP requests and verification
 
 from fastapi import APIRouter, HTTPException, status
 
-from backend.models.email_verification import (
+from backend.models.email_verification_manager import (
     EmailVerificationRequest,
     EmailVerificationVerifyRequest,
     EmailVerificationResponse
