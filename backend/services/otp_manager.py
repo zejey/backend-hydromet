@@ -19,27 +19,6 @@ from backend.utils.validators import format_phone_for_sms
 class OTPManager:
     """
     Secure OTP Manager with industry-standard security practices
-"""
-OTP Manager Service
-Handles OTP generation, verification, and rate limiting
-"""
-
-import os
-import random
-import string
-import requests
-from datetime import datetime, timedelta
-from typing import Optional, Tuple
-import bcrypt
-
-from backend.database import get_db_cursor
-from backend.config import Config
-from backend.utils.validators import format_phone_for_sms
-
-
-class OTPManager:
-    """
-    Secure OTP Manager with industry-standard security practices
     """
 
     def __init__(self):
