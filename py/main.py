@@ -89,6 +89,7 @@ app.include_router(admin_invites_router)
 app.include_router(auth_password_reset_router)
 app.include_router(preventive_measures_router)
 app.include_router(user_emails_router)
+app.include_router(email_verification_router)
 
 
 @app.get("/")

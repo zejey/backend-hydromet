@@ -23,6 +23,12 @@ class Config:
     # iProg SMS API
     SEMAPHORE_API_KEY = os.environ.get("SEMAPHORE_API_KEY", "")
 
+    # Email Settings (Brevo)
+    BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+    BREVO_SENDER = os.getenv("BREVO_SENDER", "")
+    
+    # Environment
+    ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
     # OTP Settings
     OTP_VALIDITY_MINUTES = int(os.getenv("OTP_VALIDITY_MINUTES", 5))

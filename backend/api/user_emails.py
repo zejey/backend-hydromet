@@ -52,58 +52,52 @@ async def add_user_email(request: AddEmailRequest):
 
 
 @router.get("/user/{user_id}")
-async def get_user_email(user_id: str):
-    """Get primary verified email for a user"""
+async def get_user_email(user_id: str):  # ← Changed from int to str
+    """Get primary email for a user"""
     try:
         with get_db_cursor() as cur:
             cur.execute("""
-                SELECT email
-                FROM user_emails
-                WHERE user_id = %s
-                  AND is_primary = TRUE
-                  AND is_verified = TRUE
+                SELECT email FROM user_emails
+                WHERE user_id = %s AND is_primary = TRUE
                 LIMIT 1
             """, (user_id,))
-
+            
             result = cur.fetchone()
-
+            
             return {
                 "success": True,
                 "email": result['email'] if result else None
             }
-
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/check-phone/{phone_number}")
 async def check_user_has_email(phone_number: str):
-    """Check if user has a primary verified email registered"""
+    """Check if user has verified primary email registered"""
     try:
         with get_db_cursor() as cur:
             cur.execute("""
-                SELECT u.id, ue.email
+                SELECT u.id, ue.email, ue.is_verified
                 FROM users u
-                LEFT JOIN user_emails ue
-                  ON ue.user_id = u.id
-                 AND ue.is_primary = TRUE
-                 AND ue.is_verified = TRUE
+                LEFT JOIN user_emails ue ON ue.user_id = u.id AND ue.is_primary = TRUE AND ue.is_verified = TRUE
                 WHERE u.phone_number = %s
                 LIMIT 1
             """, (phone_number,))
-
+            
             user = cur.fetchone()
-
+            
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
-
+            
             return {
                 "success": True,
                 "has_email": user['email'] is not None,
                 "email": user['email'],
                 "user_id": user['id']
             }
-
+            
     except HTTPException:
         raise
     except Exception as e:
