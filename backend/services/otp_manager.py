@@ -70,37 +70,45 @@ class OTPManager:
                 AND is_invalidated = FALSE
             """, (phone_number,))
 
-    def _send_sms(self, phone_number: str, message: str) -> Tuple[bool, Optional[str]]:
-        """Send SMS via Semaphore API"""
+    def _send_sms(self, phone_number: str, message: str):
         try:
             from backend.utils.validators import format_phone_for_semaphore
 
-            formatted_phone = format_phone_for_semaphore(phone_number)  # e.g. 639XXXXXXXXX
+            formatted_phone = format_phone_for_semaphore(phone_number)
 
             if not Config.SEMAPHORE_API_KEY:
                 return False, "Semaphore API key missing (SEMAPHORE_API_KEY)"
 
             url = "https://api.semaphore.co/api/v4/messages"
+            payload = {
+                "apikey": Config.SEMAPHORE_API_KEY,
+                "number": formatted_phone,
+                "message": message,
+                "sendername": "HydroMET",  # try removing this to test default sender
+            }
 
-            response = requests.post(
-                url,
-                data={  # Semaphore uses form data, not JSON
-                      "apikey": Config.SEMAPHORE_API_KEY,
-                      "number": formatted_phone,
-                      "message": message,
-                      "sendername": "HydroMET",
-                      },
-                timeout=10,
-            )
+            response = requests.post(url, data=payload, timeout=10)
 
-            # Consider anything outside 2xx a failure
-            if 200 <= response.status_code < 300:
-                return True, None
+            # Always inspect body
+            content_type = response.headers.get("Content-Type", "")
+            body_text = response.text
 
-            return False, f"Semaphore API error: {response.status_code} - {response.text}"
+            if "application/json" in content_type:
+                try:
+                    body = response.json()
+                except Exception:
+                    body = None
+            else:
+                body = None
+
+            if not (200 <= response.status_code < 300):
+                return False, f"HTTP {response.status_code}: {body or body_text}"
+
+            # Semaphore typically returns a list of message objects; check for error fields/status
+            return True, body or body_text
 
         except requests.exceptions.RequestException as e:
-            return False, f"SMS sending failed: {str(e)}"    
+            return False, f"SMS sending failed: {str(e)}"
 
     def send_otp(self, phone_number: str) -> Tuple[bool, str, Optional[dict]]:
         """Generate and send OTP to phone number"""
