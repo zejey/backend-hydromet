@@ -19,6 +19,7 @@ from backend.api.government_agency import router as government_agency_router
 from backend.api.admin_invites import router as admin_invites_router
 from backend.api.auth_password_reset import router as auth_password_reset_router
 from backend.api.preventive_measures import router as preventive_measures_router
+from backend.api.user_emails import router as user_emails_router
 
 __all__ = [
     'users_router',
@@ -37,4 +38,5 @@ __all__ = [
     'admin_invites_router',
     'auth_password_reset_router',
     'preventive_measures_router',
+    'user_emails_router'
 ]
