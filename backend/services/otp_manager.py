@@ -160,6 +160,7 @@ class OTPManager:
         except Exception as e:
             return False, f"Error sending OTP: {str(e)}", None
 
+
     def verify_otp(self, phone_number: str, otp_code: str) -> Tuple[bool, str, Optional[dict]]:
         """Verify OTP code for phone number"""
         try:
