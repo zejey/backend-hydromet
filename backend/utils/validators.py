@@ -54,3 +54,36 @@ def format_phone_for_sms(phone: str) -> str:
     if phone.startswith('0'):
         return '63' + phone[1:]
     return phone
+
+def format_phone_for_semaphore(phone_number: str) -> str:
+    """
+    Convert PH phone numbers to Semaphore format: 639XXXXXXXXX (no + prefix)
+
+    Accepts:
+    - 09XXXXXXXXX
+    - 9XXXXXXXXX
+    - 639XXXXXXXXX
+    - +639XXXXXXXXX
+    
+    Returns:
+    - 639XXXXXXXXX
+    """
+    if not phone_number:
+        raise ValueError("Empty phone number")
+
+    s = phone_number.strip().replace("+", "").replace(" ", "")
+    digits = "".join(ch for ch in s if ch.isdigit())
+
+    # 09xxxxxxxxx -> 639xxxxxxxxx
+    if digits.startswith("09") and len(digits) == 11:
+        return "63" + digits[1:]
+
+    # 9xxxxxxxxx -> 639xxxxxxxxx
+    if digits.startswith("9") and len(digits) == 10:
+        return "63" + digits
+
+    # Already 639xxxxxxxxx
+    if digits.startswith("63") and len(digits) == 12:
+        return digits
+
+    raise ValueError(f"Invalid PH phone number format for Semaphore: {phone_number}")
