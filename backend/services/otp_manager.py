@@ -22,12 +22,10 @@ class OTPManager:
     """
 
     def __init__(self):
-        self.api_token = Config.IPROG_API_TOKEN
         self.otp_validity_minutes = Config.OTP_VALIDITY_MINUTES
         self.max_attempts = Config.OTP_MAX_ATTEMPTS
         self.rate_limit_hours = Config.OTP_RATE_LIMIT_HOURS
         self.max_requests_per_period = Config.OTP_MAX_REQUESTS_PER_PERIOD
-        self.sms_endpoint = "https://sms.iprogtech.com/api/v1/sms_messages"
 
     def _generate_otp(self, length: int = 6) -> str:
         """Generate a random numeric OTP"""
