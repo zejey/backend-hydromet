@@ -75,13 +75,13 @@ async def get_user_email(user_id: str):  # ← Changed from int to str
 
 @router.get("/check-phone/{phone_number}")
 async def check_user_has_email(phone_number: str):
-    """Check if user has email registered"""
+    """Check if user has verified primary email registered"""
     try:
         with get_db_cursor() as cur:
             cur.execute("""
-                SELECT u.id, ue.email
+                SELECT u.id, ue.email, ue.is_verified
                 FROM users u
-                LEFT JOIN user_emails ue ON ue.user_id = u.id AND ue.is_primary = TRUE
+                LEFT JOIN user_emails ue ON ue.user_id = u.id AND ue.is_primary = TRUE AND ue.is_verified = TRUE
                 WHERE u.phone_number = %s
                 LIMIT 1
             """, (phone_number,))
