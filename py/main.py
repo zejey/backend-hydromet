@@ -35,7 +35,8 @@ from backend.api import (
     admin_invites_router,
     auth_password_reset_router,
     preventive_measures_router,
-    user_emails_router
+    user_emails_router,
+    email_verification_router
 )
 
 # Validate configuration
