@@ -90,6 +90,7 @@ class OTPManager:
                       "apikey": Config.SEMAPHORE_API_KEY,
                       "number": formatted_phone,
                       "message": message,
+                      "sendername": "HydroMET",
                       },
                 timeout=10,
             )
