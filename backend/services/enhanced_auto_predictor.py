@@ -10,17 +10,25 @@ from typing import List, Dict, Any, Optional
 import sys
 import os
 
-# Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
+# Add parent directory to path for config imports
+# NOTE: In production, install package with 'pip install -e .' to avoid this
+try:
+    from scripts.config import (
+        OPENWEATHER_API_KEY,
+        OPENWEATHER_LAT,
+        OPENWEATHER_LON,
+        OPENWEATHER_BASE_URL
+    )
+except ImportError:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
+    from scripts.config import (
+        OPENWEATHER_API_KEY,
+        OPENWEATHER_LAT,
+        OPENWEATHER_LON,
+        OPENWEATHER_BASE_URL
+    )
 
 import requests
-from scripts.config import (
-    OPENWEATHER_API_KEY,
-    OPENWEATHER_LAT,
-    OPENWEATHER_LON,
-    OPENWEATHER_BASE_URL
-)
-
 from backend.ml.multi_hazard_predictor import get_multi_hazard_predictor
 from backend.services.alert_dispatcher import get_alert_dispatcher
 

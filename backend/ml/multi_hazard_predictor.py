@@ -10,8 +10,13 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 
-# Add scripts to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+# Add scripts to path for feature engineering imports
+# NOTE: In production, install package with 'pip install -e .' to avoid this
+try:
+    from feature_engineering import extract_features_from_openweather_forecast
+except ImportError:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+    from feature_engineering import extract_features_from_openweather_forecast
 
 from backend.ml.multi_model_manager import get_multi_model_manager
 from backend.utils.logger import get_logger
