@@ -49,33 +49,32 @@ def get_nearby_evacuation_centers(
         with get_db_cursor() as cur:
             # Haversine formula to calculate distance in meters
             # Earth's radius is approximately 6371000 meters
+            # Using a CTE to avoid duplicate calculation and handle floating-point edge cases
             cur.execute("""
-                SELECT id, name, location_lat as lat, location_lng as lng,
-                       capacity, families, type, description, facilities,
-                       (
-                           6371000 * acos(
-                               cos(radians(%s)) * cos(radians(location_lat)) * 
-                               cos(radians(location_lng) - radians(%s)) + 
-                               sin(radians(%s)) * sin(radians(location_lat))
-                           )
-                       ) as distance
-                FROM evacuation_centers
-                WHERE (
-                    6371000 * acos(
-                        cos(radians(%s)) * cos(radians(location_lat)) * 
-                        cos(radians(location_lng) - radians(%s)) + 
-                        sin(radians(%s)) * sin(radians(location_lat))
-                    )
-                ) <= %s
+                WITH distances AS (
+                    SELECT id, name, location_lat as lat, location_lng as lng,
+                           capacity, families, type, description, facilities,
+                           (
+                               6371000 * acos(
+                                   LEAST(1, GREATEST(-1,
+                                       cos(radians(%s)) * cos(radians(location_lat)) * 
+                                       cos(radians(location_lng) - radians(%s)) + 
+                                       sin(radians(%s)) * sin(radians(location_lat))
+                                   ))
+                               )
+                           ) as distance
+                    FROM evacuation_centers
+                )
+                SELECT id, name, lat, lng, capacity, families, type, description, facilities
+                FROM distances
+                WHERE distance <= %s
                 ORDER BY distance ASC
-            """, (lat, lng, lat, lat, lng, lat, radius))
+            """, (lat, lng, lat, radius))
             rows = cur.fetchall()
-            # Convert facilities if needed and remove distance field
+            # Convert facilities if needed
             result = []
             for row in rows:
                 row_dict = dict(row)
-                # Remove distance field as it's not part of the model
-                row_dict.pop('distance', None)
                 # Convert PG array to Python list if needed
                 if row_dict.get("facilities") and not isinstance(row_dict["facilities"], list):
                     row_dict["facilities"] = list(row_dict["facilities"])
