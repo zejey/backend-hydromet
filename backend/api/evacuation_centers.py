@@ -5,6 +5,21 @@ from backend.models.evacuation_center import EvacuationCenter
 
 router = APIRouter(prefix="/api/evacuation-centers", tags=["Evacuation Centers"])
 
+
+def _convert_facilities(row_dict):
+    """
+    Convert PostgreSQL array to Python list for facilities field if needed.
+    
+    Args:
+        row_dict: Dictionary representing a row from the database
+        
+    Returns:
+        The modified row_dict with facilities as a list
+    """
+    if row_dict.get("facilities") and not isinstance(row_dict["facilities"], list):
+        row_dict["facilities"] = list(row_dict["facilities"])
+    return row_dict
+
 @router.get("/", response_model=List[EvacuationCenter])
 def get_evacuation_centers():
     """
@@ -19,19 +34,16 @@ def get_evacuation_centers():
                 ORDER BY name ASC
             """)
             rows = cur.fetchall()
-            # If any, convert PG array to Python list (psycopg2 usually does this automatically)
-            for row in rows:
-                if row.get("facilities") and not isinstance(row["facilities"], list):
-                    row["facilities"] = list(row["facilities"])
-            return rows
+            # Convert PG array to Python list if needed
+            return [_convert_facilities(dict(row)) for row in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
 
 @router.get("/nearby", response_model=List[EvacuationCenter])
 def get_nearby_evacuation_centers(
-    lat: float = Query(..., description="Latitude of the point to search from"),
-    lng: float = Query(..., description="Longitude of the point to search from"),
+    lat: float = Query(..., description="Latitude of the point to search from", ge=-90, le=90),
+    lng: float = Query(..., description="Longitude of the point to search from", ge=-180, le=180),
     radius: float = Query(..., description="Search radius in meters", gt=0)
 ):
     """
@@ -72,13 +84,6 @@ def get_nearby_evacuation_centers(
             """, (lat, lng, lat, radius))
             rows = cur.fetchall()
             # Convert facilities if needed
-            result = []
-            for row in rows:
-                row_dict = dict(row)
-                # Convert PG array to Python list if needed
-                if row_dict.get("facilities") and not isinstance(row_dict["facilities"], list):
-                    row_dict["facilities"] = list(row_dict["facilities"])
-                result.append(row_dict)
-            return result
+            return [_convert_facilities(dict(row)) for row in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
