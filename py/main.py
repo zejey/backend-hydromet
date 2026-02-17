@@ -160,6 +160,17 @@ async def root():
                 "categories": "GET /api/safety/categories",
                 "tips": "GET /api/safety/tips",
                 "tips_by_category": "GET /api/safety/tips/category/{category_id}"
+            },
+            "evacuation_centers": {
+                "list": "GET /api/evacuation-centers/",
+                "nearby": "GET /api/evacuation-centers/nearby?lat={lat}&lng={lng}&radius={meters}"
+            },
+            "government_agencies": {
+                "list": "GET /api/government-agencies/",
+                "get": "GET /api/government-agencies/{agency_id}",
+                "create": "POST /api/government-agencies/",
+                "update": "PUT /api/government-agencies/{agency_id}",
+                "delete": "DELETE /api/government-agencies/{agency_id}"
             }
         },
         "features": [
@@ -170,6 +181,8 @@ async def root():
             "Emergency Hotlines Management",
             "Safety Tips & Alerts",
             "User & Admin Management",
+            "Evacuation Centers with Nearby Search",
+            "Government Agencies Management",
             "Rate Limiting & Security"
         ]
     }
