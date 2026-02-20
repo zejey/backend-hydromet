@@ -36,7 +36,8 @@ from backend.api import (
     auth_password_reset_router,
     preventive_measures_router,
     user_emails_router,
-    email_verification_router
+    email_verification_router,
+    barangays_router
 )
 
 # Validate configuration
@@ -91,6 +92,7 @@ app.include_router(auth_password_reset_router)
 app.include_router(preventive_measures_router)
 app.include_router(user_emails_router)
 app.include_router(email_verification_router)
+app.include_router(barangays_router)
 
 
 @app.get("/")
