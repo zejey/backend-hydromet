@@ -106,7 +106,16 @@ class MultiHazardPredictor:
             probability = 0.0
             if hasattr(model, 'predict_proba'):
                 proba = model.predict_proba(feature_df)[0]
-                probability = float(proba[1]) if len(proba) > 1 else float(proba[0])
+                # For binary classification, proba is [P(class=0), P(class=1)]
+                if len(proba) >= 2:
+                    probability = float(proba[1])  # P(hazard detected)
+                else:
+                    # Unexpected model output format
+                    logger.warning(
+                        f"Unexpected predict_proba output shape for {hazard_type}/{horizon}: "
+                        f"expected 2 classes, got {len(proba)}"
+                    )
+                    probability = float(proba[0]) if len(proba) > 0 else 0.0
             
             hazard_detected = bool(prediction == 1)
             

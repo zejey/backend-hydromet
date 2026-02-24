@@ -141,11 +141,7 @@ async def predict_from_weather_data(request: PredictionRequest):
             # No models available - return 503
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail={
-                    "message": "ML models not ready",
-                    "training_required": True,
-                    "instructions": model_status.get("message")
-                }
+                detail=f"ML models not ready. {model_status.get('message', 'Please train the models first.')}"
             )
         
         # Make multi-hazard prediction

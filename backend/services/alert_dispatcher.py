@@ -29,6 +29,10 @@ logger = get_logger(__name__)
 env_path = Path(__file__).parent.parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
+# SMS configuration constants
+SMS_MAX_LENGTH = 160
+SMS_TRUNCATE_LENGTH = SMS_MAX_LENGTH - 3  # Account for "..." suffix
+
 # Semaphore API configuration
 SEMAPHORE_API_KEY = os.getenv("SEMAPHORE_API_KEY")
 SEMAPHORE_SENDER_NAME = os.getenv("SEMAPHORE_SENDER_NAME", "HYDROMET")
@@ -313,9 +317,9 @@ class AlertDispatcher:
         else:
             full_message = f"⚠️ {hazard_type.replace('_', ' ').title()} Alert\n{message}"
         
-        # Truncate for SMS (160 chars)
-        if len(full_message) > 157:
-            full_message = full_message[:157] + "..."
+        # Truncate for SMS (max 160 chars, reserve 3 for "..." if truncation needed)
+        if len(full_message) > SMS_MAX_LENGTH:
+            full_message = full_message[:SMS_TRUNCATE_LENGTH] + "..."
         
         # Send SMS
         result = self._send_sms_semaphore(recipients, full_message)
@@ -380,10 +384,14 @@ class AlertDispatcher:
                 f"Probability: {highest_risk.get('probability', 0):.0%}"
             )
         else:
-            title = f"⚠️ {len(hazards)} Weather Hazard Alert"
-            hazard_names = [h.get("hazard_type", "").replace("_", " ").title() 
-                          for h in sorted_hazards[:3]]
-            message = f"Hazards: {', '.join(hazard_names)}"
+            title = f"⚠️ {len(hazards)} Weather Hazards Alert"
+            # Filter out empty hazard names
+            hazard_names = [
+                h.get("hazard_type", "").replace("_", " ").title() 
+                for h in sorted_hazards[:3]
+                if h.get("hazard_type")
+            ]
+            message = f"Hazards: {', '.join(hazard_names)}" if hazard_names else "Multiple hazards detected"
             if len(hazards) > 3:
                 message += f" +{len(hazards)-3} more"
         
@@ -397,10 +405,10 @@ class AlertDispatcher:
                 "reason": "no_recipients"
             }
         
-        # Format and send
+        # Format and send (max 160 chars, reserve 3 for "..." if truncation needed)
         full_message = f"{title}\n{message}\nStay alert and monitor updates."
-        if len(full_message) > 157:
-            full_message = full_message[:157] + "..."
+        if len(full_message) > SMS_MAX_LENGTH:
+            full_message = full_message[:SMS_TRUNCATE_LENGTH] + "..."
         
         result = self._send_sms_semaphore(recipients, full_message)
         

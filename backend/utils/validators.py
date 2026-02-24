@@ -3,6 +3,9 @@ Validation utility functions
 """
 
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_phone_number(phone: str) -> str:
@@ -66,7 +69,11 @@ def format_phone_for_semaphore(phone: str) -> str:
         09123456789 -> 639123456789
         +639123456789 -> 639123456789
         9123456789 -> 639123456789
+    
+    Returns:
+        Formatted phone number, or original if format is unrecognized
     """
+    original_phone = phone
     # Remove all non-digit characters
     phone = ''.join(filter(str.isdigit, phone))
     
@@ -80,5 +87,9 @@ def format_phone_for_semaphore(phone: str) -> str:
     if phone.startswith('9') and len(phone) == 10:
         return '63' + phone
     
-    # If already in correct format or unknown, return as is
+    # Unrecognized format - log warning and return as-is
+    logger.warning(
+        f"Unrecognized phone format '{original_phone}' (digits: {phone}). "
+        "Expected Philippine number format (09XXXXXXXXX or 639XXXXXXXXX)."
+    )
     return phone
