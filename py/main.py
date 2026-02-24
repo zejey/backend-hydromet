@@ -181,13 +181,14 @@ async def root():
 async def health():
     """
     Application health check
-    Returns system status, database connection, and ML model readiness
+    Returns system status, database connection, and multi-model ML readiness
     """
-    from backend.ml.model_manager import ModelManager
-    
-    model_manager = ModelManager()
-    model_ready = model_manager.is_model_ready()
-    
+    from backend.ml.multi_model_manager import MultiModelManager
+
+    model_manager = MultiModelManager()
+    model_status = model_manager.get_model_status()
+    model_ready = model_status["ready"]
+
     return {
         "success": True,
         "message": "Hydromet API is running smoothly",
@@ -195,7 +196,11 @@ async def health():
         "version": "2.0.0",
         "database": f"{Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_NAME}",
         "ml_model_ready": model_ready,
-        "timestamp": datetime.utcnow().isoformat()
+        "ml_models_available": f"{model_status['available_count']}/{model_status['total_expected']}",
+        "ml_model_status": "ready" if model_ready else (
+            "not_ready - run: python scripts/train_multi_models.py --csv training_data.csv"
+        ),
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
 
@@ -239,13 +244,16 @@ if __name__ == "__main__":
     print(f"✅ OTP System: Active (Rate Limited)")
     print(f"✅ Connection Pool: Initialized")
     
-    # Check ML model
-    from backend.ml.model_manager import ModelManager
-    model_manager = ModelManager()
-    if model_manager.is_model_ready():
-        print(f"✅ ML Model: Ready ({model_manager.metadata.get('accuracy', 'N/A')} accuracy)")
+    # Check ML models
+    from backend.ml.multi_model_manager import MultiModelManager
+    model_manager = MultiModelManager()
+    model_status = model_manager.get_model_status()
+    available = model_status["available_count"]
+    total = model_status["total_expected"]
+    if model_status["ready"]:
+        print(f"✅ ML Models: All {total} models ready")
     else:
-        print(f"⚠️  ML Model: Not trained yet (run train_model.py)")
+        print(f"⚠️  ML Models: {available}/{total} ready (run train_multi_models.py)")
     
     print("\n📍 API Endpoints:")
     print(f"   • Interactive Docs (Swagger): http://localhost:8000/docs")
