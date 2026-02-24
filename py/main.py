@@ -175,10 +175,21 @@ async def health():
     Application health check
     Returns system status, database connection, and ML model readiness
     """
-    from backend.ml.model_manager import ModelManager
+    from backend.ml.multi_model_manager import MultiModelManager
     
-    model_manager = ModelManager()
-    model_ready = model_manager.is_model_ready()
+    model_manager = MultiModelManager()
+    model_status = model_manager.get_model_status()
+    
+    # Format model availability string
+    ml_models_available = f"{model_status['available_count']}/{model_status['total_models']}"
+    
+    # Human-readable status
+    if model_status['available_count'] == 0:
+        ml_model_status = "Not trained - run: cd scripts && python train_multi_model.py"
+    elif model_status['available_count'] < model_status['total_models']:
+        ml_model_status = f"Partial ({ml_models_available} models ready)"
+    else:
+        ml_model_status = "All models ready"
     
     return {
         "success": True,
@@ -186,7 +197,9 @@ async def health():
         "status": "healthy",
         "version": "2.0.0",
         "database": f"{Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_NAME}",
-        "ml_model_ready": model_ready,
+        "ml_model_ready": model_status['ready'],
+        "ml_models_available": ml_models_available,
+        "ml_model_status": ml_model_status,
         "timestamp": datetime.utcnow().isoformat()
     }
 
@@ -232,12 +245,13 @@ if __name__ == "__main__":
     print(f"✅ Connection Pool: Initialized")
     
     # Check ML model
-    from backend.ml.model_manager import ModelManager
-    model_manager = ModelManager()
-    if model_manager.is_model_ready():
-        print(f"✅ ML Model: Ready ({model_manager.metadata.get('accuracy', 'N/A')} accuracy)")
+    from backend.ml.multi_model_manager import MultiModelManager
+    model_manager = MultiModelManager()
+    model_status = model_manager.get_model_status()
+    if model_status['available_count'] > 0:
+        print(f"✅ ML Models: {model_status['available_count']}/{model_status['total_models']} ready")
     else:
-        print(f"⚠️  ML Model: Not trained yet (run train_model.py)")
+        print(f"⚠️  ML Models: Not trained yet (run train_multi_model.py)")
     
     print("\n📍 API Endpoints:")
     print(f"   • Interactive Docs (Swagger): http://localhost:8000/docs")

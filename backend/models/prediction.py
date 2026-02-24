@@ -69,6 +69,10 @@ class PredictionResponse(BaseModel):
     prediction: HazardPrediction
     notification: Optional[NotificationTemplate] = None
     features: Optional[Dict[str, Any]] = None
+    multi_hazard: Optional[Dict[str, Any]] = Field(
+        None, 
+        description="Full multi-hazard/horizon output from MultiHazardPredictor"
+    )
 
 
 class ForecastPredictionResponse(BaseModel):
@@ -129,3 +133,11 @@ class HealthCheckResponse(BaseModel):
     model_ready: bool = Field(..., description="ML model status")
     model_info: Optional[ModelInfo] = None
     timestamp: str = Field(..., description="Check timestamp")
+    message: Optional[str] = Field(
+        None, 
+        description="Additional message (e.g., training instructions when not ready)"
+    )
+    multi_model_status: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Per-model availability breakdown for multi-hazard system"
+    )

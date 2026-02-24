@@ -54,3 +54,31 @@ def format_phone_for_sms(phone: str) -> str:
     if phone.startswith('0'):
         return '63' + phone[1:]
     return phone
+
+
+def format_phone_for_semaphore(phone: str) -> str:
+    """
+    Format phone number for Semaphore SMS API (639XXXXXXXXX format)
+    
+    Semaphore requires Philippine numbers in 639XXXXXXXXX format.
+    
+    Examples:
+        09123456789 -> 639123456789
+        +639123456789 -> 639123456789
+        9123456789 -> 639123456789
+    """
+    # Remove all non-digit characters
+    phone = ''.join(filter(str.isdigit, phone))
+    
+    # Handle different formats
+    if phone.startswith('63') and len(phone) == 12:
+        return phone
+    
+    if phone.startswith('0') and len(phone) == 11:
+        return '63' + phone[1:]
+    
+    if phone.startswith('9') and len(phone) == 10:
+        return '63' + phone
+    
+    # If already in correct format or unknown, return as is
+    return phone
