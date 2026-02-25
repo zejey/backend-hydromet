@@ -331,6 +331,27 @@ class HazardLabeler:
         
         logger.info(f"Creating labels for {len(hazards)} hazards across {len(horizons)} horizons")
         
+        # Sanity check: log raw event counts so users can understand why labels may be sparse
+        logger.info("\n--- Raw event counts (sanity check) ---")
+        if 'weather_id' in result_df.columns:
+            thunder_count = result_df['weather_id'].between(200, 232, inclusive='both').sum()
+            logger.info(f"  thunderstorm rows (weather_id 200-232): {thunder_count}")
+        if 'rain_1h' in result_df.columns:
+            heavy_rain_threshold = self.thresholds["heavy_rain"]["rain_1h_mm"]
+            heavy_rain_count = (result_df['rain_1h'] >= heavy_rain_threshold).sum()
+            logger.info(f"  rain_1h >= {heavy_rain_threshold}: {heavy_rain_count} rows, max={result_df['rain_1h'].max():.2f}")
+        feels_like_col = 'feels_like_c'
+        if feels_like_col in result_df.columns:
+            heat_threshold = self.thresholds["heat_stress"]["feels_like_c"]
+            heat_count = (result_df[feels_like_col] >= heat_threshold).sum()
+            logger.info(f"  {feels_like_col} >= {heat_threshold}: {heat_count} rows")
+        if 'pressure' in result_df.columns and 'wind_speed' in result_df.columns:
+            p_thresh = self.thresholds["severe_storm"]["pressure_hpa"]
+            w_thresh = self.thresholds["severe_storm"]["wind_speed_ms"]
+            storm_count = ((result_df['pressure'] <= p_thresh) & (result_df['wind_speed'] >= w_thresh)).sum()
+            logger.info(f"  severe_storm rows (pressure<={p_thresh} AND wind>={w_thresh}): {storm_count}")
+        logger.info("--- End sanity check ---\n")
+        
         for hazard in hazards:
             for horizon in horizons:
                 col_name = f"{hazard}_{horizon}h"
@@ -350,11 +371,12 @@ class HazardLabeler:
                         logger.warning(f"Unknown hazard type: {hazard}")
                         continue
                     
-                    # Log label distribution
+                    # Log label distribution including NaN count
+                    nan_count = result_df[col_name].isna().sum()
                     pos_count = result_df[col_name].sum()
                     total_count = len(result_df[col_name])
                     pct = 100 * pos_count / total_count if total_count > 0 else 0
-                    logger.info(f"    ✓ {col_name}: {pos_count}/{total_count} positive ({pct:.1f}%)")
+                    logger.info(f"    ✓ {col_name}: {pos_count}/{total_count} positive ({pct:.1f}%), NaNs: {nan_count}")
                     
                 except Exception as e:
                     logger.error(f"    ✗ Failed to label {col_name}: {e}")

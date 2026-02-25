@@ -318,10 +318,28 @@ class MultiModelTrainer:
                 
                 # Drop rows with NaN in features or labels
                 valid_mask = ~(X.isna().any(axis=1) | y.isna())
+                
+                # Log breakdown of rows removed due to NaNs
+                label_nan_count = y.isna().sum()
+                feature_nan_count = X.isna().any(axis=1).sum()
+                combined_nan_count = (~valid_mask).sum()
+                if label_nan_count > 0:
+                    logger.info(f"  Rows removed due to missing label '{label_col}': {label_nan_count}")
+                if feature_nan_count > 0:
+                    logger.info(f"  Rows removed due to missing features: {feature_nan_count}")
+                
                 X = X[valid_mask]
                 y = y[valid_mask]
                 
                 logger.info(f"Valid samples after NaN removal: {len(X)}")
+                
+                # If no valid samples, log the top columns contributing to NaNs
+                if len(X) == 0:
+                    nan_counts = data[feature_cols].isna().sum()
+                    nan_counts = nan_counts[nan_counts > 0].sort_values(ascending=False)
+                    logger.warning(f"  No valid samples for {label_col}! Top NaN contributors:")
+                    for col_name_nan, cnt in nan_counts.head(10).items():
+                        logger.warning(f"    {col_name_nan}: {cnt} NaNs ({100*cnt/len(data):.1f}%)")
                 
                 # Skip if not enough data
                 if len(X) < 50:

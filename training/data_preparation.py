@@ -304,6 +304,24 @@ class DataPreparator:
                 'quality_report': quality_report
             })
         
+        # Step 4: Ensure sorted by time column
+        if time_col in result_df.columns:
+            result_df = result_df.sort_values(time_col, ascending=True).reset_index(drop=True)
+            logger.info(f"\n[4/4] Ensured ascending sort by '{time_col}'.")
+        
+        # Step 5: Create Celsius column aliases for compatibility.
+        # OpenWeather CSV exports may use bare names ('temp', 'feels_like', 'dew_point')
+        # while labelers/features expect '_c' suffixed names.
+        celsius_aliases = [
+            ('temp', 'temp_c'),
+            ('feels_like', 'feels_like_c'),
+            ('dew_point', 'dew_point_c'),
+        ]
+        for src_col, alias_col in celsius_aliases:
+            if src_col in result_df.columns and alias_col not in result_df.columns:
+                result_df[alias_col] = result_df[src_col]
+                logger.info(f"  Created column alias: '{alias_col}' → '{src_col}'")
+        
         report['output_shape'] = result_df.shape
         
         logger.info("\n" + "=" * 60)
@@ -327,9 +345,12 @@ class DataPreparator:
             csv_path: Path to CSV file
             time_col: Name of timestamp column
             parse_dates: Whether to parse timestamp column as datetime
+                         NOTE: When time_col is 'dt' (unix epoch seconds), this is
+                         ignored and the column is kept as numeric int64 to preserve
+                         correct epoch values.
         
         Returns:
-            DataFrame with weather data
+            DataFrame with weather data, sorted ascending by time_col
         """
         csv_file = Path(csv_path)
         
@@ -338,14 +359,29 @@ class DataPreparator:
         
         logger.info(f"Loading weather data from {csv_path}...")
         
-        if parse_dates:
-            df = pd.read_csv(csv_path, parse_dates=[time_col])
-        else:
+        # When time_col is 'dt' (unix epoch seconds), do NOT use parse_dates.
+        # Passing parse_dates=['dt'] on integer epoch columns causes pandas to
+        # misinterpret the values (treats them as nanoseconds or date strings),
+        # resulting in wrong datetime values and broken horizon windows.
+        if time_col == 'dt' or not parse_dates:
             df = pd.read_csv(csv_path)
+        else:
+            df = pd.read_csv(csv_path, parse_dates=[time_col])
         
         logger.info(f"✓ Loaded {len(df)} records from CSV")
         logger.info(f"  Columns: {list(df.columns)}")
-        logger.info(f"  Date range: {df[time_col].min()} to {df[time_col].max()}")
+        
+        # Validate and log the time column
+        if time_col in df.columns:
+            logger.info(f"  Time column '{time_col}' dtype: {df[time_col].dtype}")
+            logger.info(f"  Time range: {df[time_col].min()} to {df[time_col].max()}")
+            
+            # Sort ascending by time column before any downstream processing
+            df = df.sort_values(time_col, ascending=True).reset_index(drop=True)
+            is_monotonic = df[time_col].is_monotonic_increasing
+            logger.info(f"  Sorted ascending by '{time_col}'. Monotonic increasing: {is_monotonic}")
+        else:
+            logger.warning(f"  Time column '{time_col}' not found in CSV columns!")
         
         return df
     
