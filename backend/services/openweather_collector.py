@@ -3,11 +3,18 @@ OpenWeather current weather collector service.
 
 Fetches current weather from OpenWeather API and upserts into the
 openweather_observations Postgres table with hourly dt bucketing.
+
+Design:
+- We bucket the OpenWeather payload timestamp (dt) to the start of the hour and
+  store that bucketed value in the `dt` column.
+- We do NOT use a separate `dt_hour` column to avoid schema drift/migrations.
+- Uniqueness is enforced on (dt, lat, lon).
 """
 
 import os
-import requests
+
 import psycopg2
+import requests
 
 OPENWEATHER_API_BASE = "https://api.openweathermap.org/data/2.5/weather"
 
@@ -27,10 +34,13 @@ def to_row(payload: dict, fallback_city: str, lat: float, lon: float) -> dict:
     """
     Convert OpenWeather API payload to a DB row dict.
 
-    dt is bucketed to the start of the hour: dt_hour = dt - dt % 3600
+    We bucket the raw dt to the start of the hour:
+        dt_bucket = dt_raw - (dt_raw % 3600)
+
+    and store it as `dt` in the database.
     """
     dt_raw = int(payload["dt"])
-    dt_hour = dt_raw - (dt_raw % 3600)
+    dt_bucket = dt_raw - (dt_raw % 3600)
 
     weather = payload.get("weather", [{}])[0]
     main = payload.get("main", {})
@@ -41,7 +51,7 @@ def to_row(payload: dict, fallback_city: str, lat: float, lon: float) -> dict:
     sys = payload.get("sys", {})
 
     return {
-        "dt": dt_hour,
+        "dt": dt_bucket,
         "lat": lat,
         "lon": lon,
         "city_name": payload.get("name") or fallback_city,
@@ -71,65 +81,73 @@ def to_row(payload: dict, fallback_city: str, lat: float, lon: float) -> dict:
 def ensure_table(conn) -> None:
     """Create openweather_observations table and indexes if they do not exist."""
     with conn.cursor() as cur:
-        cur.execute("""
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS openweather_observations (
-                id            SERIAL PRIMARY KEY,
-                dt            BIGINT NOT NULL,
-                dt_hour       BIGINT NOT NULL,
-                lat           DOUBLE PRECISION NOT NULL,
-                lon           DOUBLE PRECISION NOT NULL,
-                city_name     TEXT,
-                country       TEXT,
-                weather_id    INTEGER,
-                weather_main  TEXT,
+                id                  SERIAL PRIMARY KEY,
+                dt                  BIGINT NOT NULL,
+                lat                 DOUBLE PRECISION NOT NULL,
+                lon                 DOUBLE PRECISION NOT NULL,
+                city_name           TEXT,
+                country             TEXT,
+                weather_id          INTEGER,
+                weather_main        TEXT,
                 weather_description TEXT,
-                weather_icon  TEXT,
-                temp          DOUBLE PRECISION,
-                feels_like    DOUBLE PRECISION,
-                temp_min      DOUBLE PRECISION,
-                temp_max      DOUBLE PRECISION,
-                pressure      INTEGER,
-                humidity      INTEGER,
-                visibility    INTEGER,
-                wind_speed    DOUBLE PRECISION,
-                wind_deg      INTEGER,
-                wind_gust     DOUBLE PRECISION,
-                clouds_all    INTEGER,
-                rain_1h       DOUBLE PRECISION,
-                snow_1h       DOUBLE PRECISION,
-                sunrise       BIGINT,
-                sunset        BIGINT,
-                inserted_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                CONSTRAINT uq_openweather_dt_hour_lat_lon
-                    UNIQUE (dt_hour, lat, lon)
+                weather_icon        TEXT,
+                temp                DOUBLE PRECISION,
+                feels_like          DOUBLE PRECISION,
+                temp_min            DOUBLE PRECISION,
+                temp_max            DOUBLE PRECISION,
+                pressure            INTEGER,
+                humidity            INTEGER,
+                visibility          INTEGER,
+                wind_speed          DOUBLE PRECISION,
+                wind_deg            INTEGER,
+                wind_gust           DOUBLE PRECISION,
+                clouds_all          INTEGER,
+                rain_1h             DOUBLE PRECISION,
+                snow_1h             DOUBLE PRECISION,
+                sunrise             BIGINT,
+                sunset              BIGINT,
+                inserted_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_openweather_dt_lat_lon UNIQUE (dt, lat, lon)
             )
-        """)
-        cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_openweather_dt_hour
-                ON openweather_observations (dt_hour DESC)
-        """)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_openweather_dt
+                ON openweather_observations (dt DESC)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_openweather_lat_lon_dt
+                ON openweather_observations (lat, lon, dt DESC)
+            """
+        )
     conn.commit()
 
 
 def upsert_row(conn, row: dict) -> None:
-    """Insert or update a weather observation row (upsert on dt_hour, lat, lon)."""
+    """Insert or update a weather observation row (upsert on dt, lat, lon)."""
     with conn.cursor() as cur:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO openweather_observations (
-                dt, dt_hour, lat, lon, city_name, country,
+                dt, lat, lon, city_name, country,
                 weather_id, weather_main, weather_description, weather_icon,
                 temp, feels_like, temp_min, temp_max, pressure, humidity,
                 visibility, wind_speed, wind_deg, wind_gust, clouds_all,
                 rain_1h, snow_1h, sunrise, sunset
             ) VALUES (
-                %(dt)s, %(dt_hour)s, %(lat)s, %(lon)s, %(city_name)s, %(country)s,
+                %(dt)s, %(lat)s, %(lon)s, %(city_name)s, %(country)s,
                 %(weather_id)s, %(weather_main)s, %(weather_description)s, %(weather_icon)s,
                 %(temp)s, %(feels_like)s, %(temp_min)s, %(temp_max)s, %(pressure)s, %(humidity)s,
                 %(visibility)s, %(wind_speed)s, %(wind_deg)s, %(wind_gust)s, %(clouds_all)s,
                 %(rain_1h)s, %(snow_1h)s, %(sunrise)s, %(sunset)s
             )
-            ON CONFLICT (dt_hour, lat, lon) DO UPDATE SET
-                dt                  = EXCLUDED.dt,
+            ON CONFLICT (dt, lat, lon) DO UPDATE SET
                 city_name           = EXCLUDED.city_name,
                 country             = EXCLUDED.country,
                 weather_id          = EXCLUDED.weather_id,
@@ -152,7 +170,9 @@ def upsert_row(conn, row: dict) -> None:
                 sunrise             = EXCLUDED.sunrise,
                 sunset              = EXCLUDED.sunset,
                 inserted_at         = NOW()
-        """, row)
+            """,
+            row,
+        )
     conn.commit()
 
 
@@ -189,10 +209,10 @@ def run_collection() -> dict:
 
     return {
         "dt": row["dt"],
-        "dt_hour": row["dt_hour"],
         "lat": row["lat"],
         "lon": row["lon"],
         "city_name": row["city_name"],
+        "country": row["country"],
         "weather_id": row["weather_id"],
         "weather_main": row["weather_main"],
         "temp": row["temp"],
