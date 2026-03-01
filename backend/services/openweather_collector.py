@@ -29,8 +29,8 @@ def to_row(payload: dict, fallback_city: str, lat: float, lon: float) -> dict:
 
     dt is bucketed to the start of the hour: dt_hour = dt - dt % 3600
     """
-    dt = payload.get("dt", 0)
-    dt_hour = dt - (dt % 3600)
+    dt_raw = int(payload["dt"])
+    dt_hour = dt_raw - (dt_raw % 3600)
 
     weather = payload.get("weather", [{}])[0]
     main = payload.get("main", {})
@@ -41,8 +41,7 @@ def to_row(payload: dict, fallback_city: str, lat: float, lon: float) -> dict:
     sys = payload.get("sys", {})
 
     return {
-        "dt": dt,
-        "dt_hour": dt_hour,
+        "dt": dt_hour,
         "lat": lat,
         "lon": lon,
         "city_name": payload.get("name") or fallback_city,
