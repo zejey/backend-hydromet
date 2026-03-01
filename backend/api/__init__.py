@@ -22,6 +22,7 @@ from backend.api.preventive_measures import router as preventive_measures_router
 from backend.api.user_emails import router as user_emails_router
 from backend.api.email_verification import router as email_verification_router
 from backend.api.barangays import router as barangays_router
+from backend.api.internal import router as internal_router
 
 __all__ = [
     'users_router',
@@ -42,6 +43,7 @@ __all__ = [
     'preventive_measures_router',
     'user_emails_router',
     'email_verification_router',
-    'barangays_router'
+    'barangays_router',
+    'internal_router'
 
 ]
