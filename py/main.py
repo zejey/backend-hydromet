@@ -37,7 +37,8 @@ from backend.api import (
     preventive_measures_router,
     user_emails_router,
     email_verification_router,
-    barangays_router
+    barangays_router,
+    internal_router,
 )
 
 # Validate configuration
@@ -93,6 +94,7 @@ app.include_router(preventive_measures_router)
 app.include_router(user_emails_router)
 app.include_router(email_verification_router)
 app.include_router(barangays_router)
+app.include_router(internal_router)  # /internal/*
 
 
 @app.get("/")
