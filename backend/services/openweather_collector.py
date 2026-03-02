@@ -26,7 +26,8 @@ def fetch_current_weather(api_key: str, lat: float, lon: float) -> dict:
 
 def to_row(payload: dict, fallback_city: str, lat: float, lon: float) -> dict:
     dt_raw = int(payload["dt"])
-    dt_bucket = dt_raw - (dt_raw % 3600)
+    bucket_sounds = 15 * 60
+    dt_bucket = dt_raw - (dt_raw % bucket_sounds)
 
     weather0 = (payload.get("weather") or [{}])[0] or {}
     main = payload.get("main") or {}
