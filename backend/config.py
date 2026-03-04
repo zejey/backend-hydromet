@@ -23,6 +23,13 @@ class Config:
     # iProg SMS API
     SEMAPHORE_API_KEY = os.environ.get("SEMAPHORE_API_KEY", "")
 
+    # Forecast runner
+    FORECAST_DEFAULT_LAT = os.getenv("FORECAST_DEFAULT_LAT", os.getenv("OPENWEATHER_LAT", "14.3597"))
+    FORECAST_DEFAULT_LON = os.getenv("FORECAST_DEFAULT_LON", os.getenv("OPENWEATHER_LON", "121.0583"))
+    INTERNAL_CRON_SECRET = os.getenv("INTERNAL_CRON_SECRET", "")
+    FORECAST_RUNNER_ENABLED = os.getenv("FORECAST_RUNNER_ENABLED", "false").lower() == "true"
+    FORECAST_DEDUPE_HOURS = int(os.getenv("FORECAST_DEDUPE_HOURS", "6"))
+
     # Email Settings (Brevo)
     BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
     BREVO_SENDER = os.getenv("BREVO_SENDER", "")
