@@ -3,7 +3,7 @@ name: OpenWeather Current Collector
 on:
   schedule:
     - cron: '0 * * * *'   # every hour at :00
-  workflow_dispatch:        # allow manual trigger
+  workflow_dispatch:
 
 jobs:
   collect:
@@ -17,6 +17,26 @@ jobs:
             -X POST \
             -H "X-Internal-Token: ${{ secrets.INTERNAL_COLLECTOR_TOKEN }}" \
             https://caring-kindness-production.up.railway.app/internal/collect/openweather)
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n -1)
+          echo "HTTP status: $http_code"
+          echo "Response: $body"
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "::error::Endpoint returned non-2xx status: $http_code"
+            exit 1
+          fi
+
+  forecast:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Trigger Forecast runner (hourly)
+        run: |
+          response=$(curl --silent --show-error --fail \
+            --write-out "\n%{http_code}" \
+            -X POST \
+            -H "X-Internal-Secret: ${{ secrets.INTERNAL_CRON_SECRET }}" \
+            https://caring-kindness-production.up.railway.app/internal/forecast/run)
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | head -n -1)
           echo "HTTP status: $http_code"
