@@ -38,6 +38,7 @@ _HEAT_PROB_BASE = 0.50      # Base probability for heat stress rule
 _HEAT_PROB_SCALE = 10.0     # °C above threshold that maps to _PROB_MAX - _HEAT_PROB_BASE
 
 _SEVERITY_RANK = {"moderate": 0, "high": 1, "critical": 2}
+_ALLOWED_FORCE_HAZARDS = {"severe_storm", "thunderstorm", "heavy_rain", "heat_stress"}
 
 
 def _hazard_display_name(hazard: str) -> str:
@@ -296,7 +297,8 @@ def _get_single_user(user_id: str) -> Optional[Dict]:
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run_forecast(test_user_id: Optional[str] = None) -> Dict[str, Any]:
+# Change signature:
+def run_forecast(test_user_id: Optional[str] = None, force_hazard: Optional[str] = None) -> Dict[str, Any]:
     """
     Fetch the OpenWeather forecast, detect hazards, deduplicate, then:
       - Insert a notification record into Postgres notifications table.
@@ -325,6 +327,22 @@ def run_forecast(test_user_id: Optional[str] = None) -> Dict[str, Any]:
 
     # 2. Analyze hazards
     hazards = analyze_forecast(forecast_data)
+
+    # NEW: Force hazard for testing
+    if force_hazard:
+        if force_hazard not in _ALLOWED_FORCE_HAZARDS:
+            raise ValueError(f"Invalid force_hazard: {force_hazard}. Allowed: {sorted(_ALLOWED_FORCE_HAZARDS)}")
+
+        hazards = [{
+            "hazard": force_hazard,
+            "severity": "moderate",
+            "probability": 0.50,
+            "horizon_h": 3,
+            "weather_id": 0,
+            "weather_main": "FORCED_TEST",
+            "description": "Forced hazard for testing",
+        }]
+        logger.warning(f"Force hazard enabled (scope={scope}): {force_hazard}")
 
     if not hazards:
         logger.info("No hazards detected in forecast")

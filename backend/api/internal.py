@@ -5,7 +5,7 @@ Forecast routes require the X-Internal-Secret header to match INTERNAL_CRON_SECR
 """
 
 import os
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, status, Query
 from backend.services.openweather_collector import run_collection
 from backend.utils.logger import get_logger
 
@@ -115,6 +115,7 @@ async def forecast_run_all(
 @router.post("/forecast/test/user/{user_id}")
 async def forecast_run_test_user(
     user_id: str,
+    force_hazard: str | None = Query(default=None),  # <-- add this
     x_internal_secret: str = Header(default="", alias="X-Internal-Secret"),
 ):
     """
@@ -133,7 +134,7 @@ async def forecast_run_test_user(
     from backend.services.forecast_runner import run_forecast
 
     try:
-        result = run_forecast(test_user_id=user_id)
+        result = run_forecast(test_user_id=user_id, force_hazard=force_hazard)
         logger.info(f"Forecast test run (user={user_id}) complete: {result}")
         return result
     except ValueError as exc:
