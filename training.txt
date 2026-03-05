@@ -1,0 +1,361 @@
+(venv) zam@fedora:~/Workspace/backend-hydromet$ python scripts/train_multi_models.py --csv openweather_training.csv --refresh-cache
+2026-02-26 08:55:57,339 - __main__ - INFO - ================================================================================
+2026-02-26 08:55:57,339 - __main__ - INFO - MULTI-HAZARD MULTI-HORIZON MODEL TRAINING
+2026-02-26 08:55:57,339 - __main__ - INFO - ================================================================================
+2026-02-26 08:55:57,339 - __main__ - INFO - Training data: openweather_training.csv
+2026-02-26 08:55:57,339 - __main__ - INFO - Models directory: models
+2026-02-26 08:55:57,339 - __main__ - INFO - Time column: dt
+2026-02-26 08:55:57,339 - __main__ - INFO - Test size: 0.2
+2026-02-26 08:55:57,339 - __main__ - INFO - ================================================================================
+2026-02-26 08:55:57,339 - __main__ - INFO - PREPARING TRAINING DATA
+2026-02-26 08:55:57,339 - __main__ - INFO - ================================================================================
+2026-02-26 08:55:57,339 - data_preparation - INFO - Loading weather data from openweather_training.csv...
+2026-02-26 08:55:58,145 - data_preparation - INFO - ✓ Loaded 412584 records from CSV
+2026-02-26 08:55:58,145 - data_preparation - INFO -   Columns: ['dt', 'dt_iso', 'timezone', 'city_name', 'lat', 'lon', 'temp', 'feels_like', 'temp_min', 'temp_max', 'dew_point', 'pressure', 'sea_level', 'grnd_level', 'humidity', 'visibility', 'wind_speed', 'wind_deg', 'wind_gust', 'rain_1h', 'rain_3h', 'snow_1h', 'snow_3h', 'clouds_all', 'weather_id', 'weather_main', 'weather_description', 'weather_icon', 'synced_at', 'data_source']
+2026-02-26 08:55:58,194 - data_preparation - INFO -   Time column 'dt' dtype: int64
+2026-02-26 08:55:58,195 - data_preparation - INFO -   Time range: 283996800 to 1769295600
+2026-02-26 08:55:58,198 - data_preparation - INFO -   Sorted ascending by 'dt'. Monotonic increasing: True
+2026-02-26 08:55:58,198 - __main__ - INFO - 
+Step 1: Data preparation...
+2026-02-26 08:55:58,198 - data_preparation - INFO - ============================================================
+2026-02-26 08:55:58,198 - data_preparation - INFO - Starting dataset preparation
+2026-02-26 08:55:58,198 - data_preparation - INFO - ============================================================
+2026-02-26 08:55:58,198 - data_preparation - INFO - Input shape: (412584, 30)
+2026-02-26 08:55:58,215 - data_preparation - INFO - 
+[1/3] Aggregating duplicate timestamps...
+2026-02-26 08:55:58,224 - data_preparation - INFO - No duplicate timestamps found in column 'dt'
+2026-02-26 08:55:58,224 - data_preparation - INFO - 
+[2/3] Handling missing precipitation...
+2026-02-26 08:55:58,233 - data_preparation - INFO - 
+[3/3] Cleaning and validating data...
+2026-02-26 08:55:58,254 - data_preparation - INFO - 
+[4/4] Ensured ascending sort by 'dt'.
+2026-02-26 08:55:58,254 - data_preparation - INFO -   Created column alias: 'temp_c' → 'temp'
+2026-02-26 08:55:58,254 - data_preparation - INFO -   Created column alias: 'feels_like_c' → 'feels_like'
+2026-02-26 08:55:58,255 - data_preparation - INFO -   Created column alias: 'dew_point_c' → 'dew_point'
+2026-02-26 08:55:58,255 - data_preparation - INFO - 
+============================================================
+2026-02-26 08:55:58,255 - data_preparation - INFO - Dataset preparation complete
+2026-02-26 08:55:58,255 - data_preparation - INFO - ============================================================
+2026-02-26 08:55:58,255 - data_preparation - INFO - Output shape: (412584, 33)
+2026-02-26 08:55:58,255 - data_preparation - INFO - Rows processed: 412584 → 412584
+2026-02-26 08:55:58,255 - __main__ - INFO - 
+Step 2: Feature engineering...
+2026-02-26 08:55:58,282 - feature_engineering - INFO - Engineering extended features for 8 variables
+2026-02-26 08:55:58,453 - feature_engineering - INFO - ✓ Extended features added. New shape: (412584, 81)
+2026-02-26 08:55:58,453 - __main__ - INFO - 
+Step 3: Label generation...
+2026-02-26 08:55:58,654 - hazard_labeling - INFO - Creating labels for 4 hazards across 3 horizons
+2026-02-26 08:55:58,654 - hazard_labeling - INFO - 
+--- Raw event counts (sanity check) ---
+2026-02-26 08:55:58,655 - hazard_labeling - INFO -   thunderstorm rows (weather_id 200-232): 4197
+2026-02-26 08:55:58,656 - hazard_labeling - INFO -   rain_1h >= 20.0: 92 rows, max=41.15
+2026-02-26 08:55:58,656 - hazard_labeling - INFO -   feels_like_c >= 38.0: 20418 rows
+2026-02-26 08:55:58,657 - hazard_labeling - INFO -   severe_storm rows (pressure<=980.0 AND wind>=20.0): 0
+2026-02-26 08:55:58,657 - hazard_labeling - INFO - --- End sanity check ---
+
+2026-02-26 08:55:58,657 - hazard_labeling - INFO -   Labeling heat_stress_12h...
+2026-02-26 09:03:36,242 - hazard_labeling - INFO -     ✓ heat_stress_12h: 91023/412584 positive (22.1%), NaNs: 0
+2026-02-26 09:03:36,242 - hazard_labeling - INFO -   Labeling heat_stress_24h...
+2026-02-26 09:11:12,522 - hazard_labeling - INFO -     ✓ heat_stress_24h: 145885/412584 positive (35.4%), NaNs: 0
+2026-02-26 09:11:12,522 - hazard_labeling - INFO -   Labeling heat_stress_48h...
+2026-02-26 09:18:49,279 - hazard_labeling - INFO -     ✓ heat_stress_48h: 183419/412584 positive (44.5%), NaNs: 0
+2026-02-26 09:18:49,279 - hazard_labeling - INFO -   Labeling heavy_rain_12h...
+2026-02-26 09:26:21,702 - hazard_labeling - INFO -     ✓ heavy_rain_12h: 616/412584 positive (0.1%), NaNs: 0
+2026-02-26 09:26:21,702 - hazard_labeling - INFO -   Labeling heavy_rain_24h...
+2026-02-26 09:33:58,193 - hazard_labeling - INFO -     ✓ heavy_rain_24h: 1180/412584 positive (0.3%), NaNs: 0
+2026-02-26 09:33:58,194 - hazard_labeling - INFO -   Labeling heavy_rain_48h...
+2026-02-26 09:41:35,022 - hazard_labeling - INFO -     ✓ heavy_rain_48h: 2306/412584 positive (0.6%), NaNs: 0
+2026-02-26 09:41:35,022 - hazard_labeling - INFO -   Labeling thunderstorm_12h...
+2026-02-26 09:52:29,311 - hazard_labeling - INFO -     ✓ thunderstorm_12h: 32581/412584 positive (7.9%), NaNs: 0
+2026-02-26 09:52:29,311 - hazard_labeling - INFO -   Labeling thunderstorm_24h...
+2026-02-26 10:21:54,860 - hazard_labeling - INFO -     ✓ thunderstorm_24h: 58151/412584 positive (14.1%), NaNs: 0
+2026-02-26 10:21:54,860 - hazard_labeling - INFO -   Labeling thunderstorm_48h...
+2026-02-26 10:32:49,758 - hazard_labeling - INFO -     ✓ thunderstorm_48h: 90759/412584 positive (22.0%), NaNs: 0
+2026-02-26 10:32:49,758 - hazard_labeling - INFO -   Labeling severe_storm_12h...
+2026-02-26 10:44:13,534 - hazard_labeling - INFO -     ✓ severe_storm_12h: 0/412584 positive (0.0%), NaNs: 0
+2026-02-26 10:44:13,534 - hazard_labeling - INFO -   Labeling severe_storm_24h...
+2026-02-26 10:55:46,785 - hazard_labeling - INFO -     ✓ severe_storm_24h: 0/412584 positive (0.0%), NaNs: 0
+2026-02-26 10:55:46,785 - hazard_labeling - INFO -   Labeling severe_storm_48h...
+2026-02-26 11:05:56,769 - hazard_labeling - INFO -     ✓ severe_storm_48h: 0/412584 positive (0.0%), NaNs: 0
+2026-02-26 11:05:56,773 - __main__ - INFO - 
+Saving prepared+labeled dataset cache to: models/cache/prepared_labeled.parquet
+2026-02-26 11:05:57,412 - __main__ - INFO - ✓ Cache saved
+2026-02-26 11:05:57,412 - __main__ - INFO - 
+✓ Training data prepared: (412584, 93)
+2026-02-26 11:05:57,413 - __main__ - INFO - 
+================================================================================
+2026-02-26 11:05:57,413 - __main__ - INFO - TRAINING ALL MODELS (4 hazards × 3 horizons = 12 models)
+2026-02-26 11:05:57,413 - __main__ - INFO - ================================================================================
+2026-02-26 11:05:57,413 - __main__ - INFO - 
+Total features available: 80
+2026-02-26 11:05:57,415 - __main__ - INFO - 
+Features for heat_stress: 72
+2026-02-26 11:05:57,737 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 11:05:57,787 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 11:05:57,788 - __main__ - INFO - 
+============================================================
+2026-02-26 11:05:57,788 - __main__ - INFO - Training: heat_stress @ 12h horizon
+2026-02-26 11:05:57,788 - __main__ - INFO - ============================================================
+2026-02-26 11:05:57,788 - __main__ - INFO - Training samples: 330067
+2026-02-26 11:05:57,788 - __main__ - INFO -   Positive (hazard): 63577 (19.3%)
+2026-02-26 11:05:57,788 - __main__ - INFO -   Negative (no hazard): 266490 (80.7%)
+2026-02-26 11:05:57,788 - __main__ - INFO - Using SMOTE for class balancing...
+2026-02-26 11:05:57,789 - __main__ - INFO - Training model...
+2026-02-26 11:08:01,671 - __main__ - INFO - 
+Test Set Performance:
+2026-02-26 11:08:01,672 - __main__ - INFO -   Accuracy:  0.6513
+2026-02-26 11:08:01,672 - __main__ - INFO -   Precision: 0.4862
+2026-02-26 11:08:01,672 - __main__ - INFO -   Recall:    0.8562
+2026-02-26 11:08:01,672 - __main__ - INFO -   F1-Score:  0.6202
+2026-02-26 11:08:01,672 - __main__ - INFO - 
+Running 5-fold time series cross-validation...
+2026-02-26 11:12:56,151 - __main__ - INFO -   CV Accuracy: 0.6754 (+/- 0.0167)
+2026-02-26 11:12:56,180 - __main__ - INFO - 
+Confusion Matrix:
+2026-02-26 11:12:56,180 - __main__ - INFO -   TN=30243  FP=24828
+2026-02-26 11:12:56,180 - __main__ - INFO -   FN=3947  TP=23499
+2026-02-26 11:12:56,230 - __main__ - INFO - ✓ heat_stress_12h training complete
+2026-02-26 11:12:56,231 - __main__ - INFO - 
+Features for heat_stress: 72
+2026-02-26 11:12:56,311 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 11:12:56,354 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 11:12:56,355 - __main__ - INFO - 
+============================================================
+2026-02-26 11:12:56,355 - __main__ - INFO - Training: heat_stress @ 24h horizon
+2026-02-26 11:12:56,355 - __main__ - INFO - ============================================================
+2026-02-26 11:12:56,356 - __main__ - INFO - Training samples: 330067
+2026-02-26 11:12:56,356 - __main__ - INFO -   Positive (hazard): 104643 (31.7%)
+2026-02-26 11:12:56,356 - __main__ - INFO -   Negative (no hazard): 225424 (68.3%)
+2026-02-26 11:12:56,356 - __main__ - INFO - Using SMOTE for class balancing...
+2026-02-26 11:12:56,356 - __main__ - INFO - Training model...
+2026-02-26 11:14:50,202 - __main__ - INFO - 
+Test Set Performance:
+2026-02-26 11:14:50,202 - __main__ - INFO -   Accuracy:  0.7130
+2026-02-26 11:14:50,202 - __main__ - INFO -   Precision: 0.6685
+2026-02-26 11:14:50,202 - __main__ - INFO -   Recall:    0.8448
+2026-02-26 11:14:50,202 - __main__ - INFO -   F1-Score:  0.7464
+2026-02-26 11:14:50,202 - __main__ - INFO - 
+Running 5-fold time series cross-validation...
+2026-02-26 11:19:12,742 - __main__ - INFO -   CV Accuracy: 0.6958 (+/- 0.0120)
+2026-02-26 11:19:12,745 - __main__ - INFO - 
+Confusion Matrix:
+2026-02-26 11:19:12,745 - __main__ - INFO -   TN=23997  FP=17278
+2026-02-26 11:19:12,745 - __main__ - INFO -   FN=6401  TP=34841
+2026-02-26 11:19:12,807 - __main__ - INFO - ✓ heat_stress_24h training complete
+2026-02-26 11:19:12,808 - __main__ - INFO - 
+Features for heat_stress: 72
+2026-02-26 11:19:12,892 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 11:19:12,935 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 11:19:12,936 - __main__ - INFO - 
+============================================================
+2026-02-26 11:19:12,936 - __main__ - INFO - Training: heat_stress @ 48h horizon
+2026-02-26 11:19:12,936 - __main__ - INFO - ============================================================
+2026-02-26 11:19:12,936 - __main__ - INFO - Training samples: 330067
+2026-02-26 11:19:12,937 - __main__ - INFO -   Positive (hazard): 134067 (40.6%)
+2026-02-26 11:19:12,937 - __main__ - INFO -   Negative (no hazard): 196000 (59.4%)
+2026-02-26 11:19:12,937 - __main__ - INFO - Using SMOTE for class balancing...
+2026-02-26 11:19:12,937 - __main__ - INFO - Training model...
+2026-02-26 11:21:00,064 - __main__ - INFO - 
+Test Set Performance:
+2026-02-26 11:21:00,064 - __main__ - INFO -   Accuracy:  0.7258
+2026-02-26 11:21:00,064 - __main__ - INFO -   Precision: 0.7437
+2026-02-26 11:21:00,064 - __main__ - INFO -   Recall:    0.8265
+2026-02-26 11:21:00,064 - __main__ - INFO -   F1-Score:  0.7829
+2026-02-26 11:21:00,064 - __main__ - INFO - 
+Running 5-fold time series cross-validation...
+2026-02-26 11:25:00,530 - __main__ - INFO -   CV Accuracy: 0.7001 (+/- 0.0125)
+2026-02-26 11:25:00,532 - __main__ - INFO - 
+Confusion Matrix:
+2026-02-26 11:25:00,532 - __main__ - INFO -   TN=19104  FP=14061
+2026-02-26 11:25:00,532 - __main__ - INFO -   FN=8562  TP=40790
+2026-02-26 11:25:00,610 - __main__ - INFO - ✓ heat_stress_48h training complete
+2026-02-26 11:25:00,611 - __main__ - INFO - 
+Features for heavy_rain: 72
+2026-02-26 11:25:00,695 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 11:25:00,739 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 11:25:00,741 - __main__ - INFO - 
+============================================================
+2026-02-26 11:25:00,741 - __main__ - INFO - Training: heavy_rain @ 12h horizon
+2026-02-26 11:25:00,741 - __main__ - INFO - ============================================================
+2026-02-26 11:25:00,741 - __main__ - INFO - Training samples: 330067
+2026-02-26 11:25:00,741 - __main__ - INFO -   Positive (hazard): 173 (0.1%)
+2026-02-26 11:25:00,741 - __main__ - INFO -   Negative (no hazard): 329894 (99.9%)
+2026-02-26 11:25:00,741 - __main__ - INFO - Using SMOTE for class balancing...
+2026-02-26 11:25:00,741 - __main__ - INFO - Training model...
+2026-02-26 11:27:38,807 - __main__ - INFO - 
+Test Set Performance:
+2026-02-26 11:27:38,807 - __main__ - INFO -   Accuracy:  0.8704
+2026-02-26 11:27:38,807 - __main__ - INFO -   Precision: 0.0197
+2026-02-26 11:27:38,807 - __main__ - INFO -   Recall:    0.4740
+2026-02-26 11:27:38,807 - __main__ - INFO -   F1-Score:  0.0378
+2026-02-26 11:27:38,807 - __main__ - INFO - 
+Running 5-fold time series cross-validation...
+2026-02-26 11:33:40,621 - __main__ - INFO -   CV Accuracy: 0.9346 (+/- 0.0358)
+2026-02-26 11:33:40,623 - __main__ - INFO - 
+Confusion Matrix:
+2026-02-26 11:33:40,623 - __main__ - INFO -   TN=71610  FP=10464
+2026-02-26 11:33:40,623 - __main__ - INFO -   FN= 233  TP= 210
+2026-02-26 11:33:40,626 - __main__ - INFO - ✓ heavy_rain_12h training complete
+2026-02-26 11:33:40,627 - __main__ - INFO - 
+Features for heavy_rain: 72
+2026-02-26 11:33:40,713 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 11:33:40,758 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 11:33:40,759 - __main__ - INFO - 
+============================================================
+2026-02-26 11:33:40,759 - __main__ - INFO - Training: heavy_rain @ 24h horizon
+2026-02-26 11:33:40,759 - __main__ - INFO - ============================================================
+2026-02-26 11:33:40,760 - __main__ - INFO - Training samples: 330067
+2026-02-26 11:33:40,760 - __main__ - INFO -   Positive (hazard): 317 (0.1%)
+2026-02-26 11:33:40,760 - __main__ - INFO -   Negative (no hazard): 329750 (99.9%)
+2026-02-26 11:33:40,760 - __main__ - INFO - Using SMOTE for class balancing...
+2026-02-26 11:33:40,760 - __main__ - INFO - Training model...
+2026-02-26 11:36:19,004 - __main__ - INFO - 
+Test Set Performance:
+2026-02-26 11:36:19,004 - __main__ - INFO -   Accuracy:  0.7938
+2026-02-26 11:36:19,004 - __main__ - INFO -   Precision: 0.0294
+2026-02-26 11:36:19,004 - __main__ - INFO -   Recall:    0.5840
+2026-02-26 11:36:19,004 - __main__ - INFO -   F1-Score:  0.0559
+2026-02-26 11:36:19,004 - __main__ - INFO - 
+Running 5-fold time series cross-validation...
+2026-02-26 11:42:20,437 - __main__ - INFO -   CV Accuracy: 0.8428 (+/- 0.0333)
+2026-02-26 11:42:20,440 - __main__ - INFO - 
+Confusion Matrix:
+2026-02-26 11:42:20,440 - __main__ - INFO -   TN=64996  FP=16658
+2026-02-26 11:42:20,440 - __main__ - INFO -   FN= 359  TP= 504
+2026-02-26 11:42:20,442 - __main__ - INFO - ✓ heavy_rain_24h training complete
+2026-02-26 11:42:20,443 - __main__ - INFO - 
+Features for heavy_rain: 72
+2026-02-26 11:42:20,528 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 11:42:20,573 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 11:42:20,575 - __main__ - INFO - 
+============================================================
+2026-02-26 11:42:20,575 - __main__ - INFO - Training: heavy_rain @ 48h horizon
+2026-02-26 11:42:20,575 - __main__ - INFO - ============================================================
+2026-02-26 11:42:20,575 - __main__ - INFO - Training samples: 330067
+2026-02-26 11:42:20,575 - __main__ - INFO -   Positive (hazard): 605 (0.2%)
+2026-02-26 11:42:20,575 - __main__ - INFO -   Negative (no hazard): 329462 (99.8%)
+2026-02-26 11:42:20,575 - __main__ - INFO - Using SMOTE for class balancing...
+2026-02-26 11:42:20,575 - __main__ - INFO - Training model...
+2026-02-26 11:45:00,531 - __main__ - INFO - 
+Test Set Performance:
+2026-02-26 11:45:00,531 - __main__ - INFO -   Accuracy:  0.6177
+2026-02-26 11:45:00,531 - __main__ - INFO -   Precision: 0.0384
+2026-02-26 11:45:00,531 - __main__ - INFO -   Recall:    0.7296
+2026-02-26 11:45:00,531 - __main__ - INFO -   F1-Score:  0.0729
+2026-02-26 11:45:00,531 - __main__ - INFO - 
+Running 5-fold time series cross-validation...
+2026-02-26 11:50:57,894 - __main__ - INFO -   CV Accuracy: 0.7259 (+/- 0.0406)
+2026-02-26 11:50:57,896 - __main__ - INFO - 
+Confusion Matrix:
+2026-02-26 11:50:57,896 - __main__ - INFO -   TN=49729  FP=31087
+2026-02-26 11:50:57,897 - __main__ - INFO -   FN= 460  TP=1241
+2026-02-26 11:50:57,900 - __main__ - INFO - ✓ heavy_rain_48h training complete
+2026-02-26 11:50:57,900 - __main__ - INFO - 
+Features for thunderstorm: 72
+2026-02-26 11:50:58,001 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 11:50:58,054 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 11:50:58,056 - __main__ - INFO - 
+============================================================
+2026-02-26 11:50:58,056 - __main__ - INFO - Training: thunderstorm @ 12h horizon
+2026-02-26 11:50:58,056 - __main__ - INFO - ============================================================
+2026-02-26 11:50:58,056 - __main__ - INFO - Training samples: 330067
+2026-02-26 11:50:58,056 - __main__ - INFO -   Positive (hazard): 26959 (8.2%)
+2026-02-26 11:50:58,056 - __main__ - INFO -   Negative (no hazard): 303108 (91.8%)
+2026-02-26 11:50:58,056 - __main__ - INFO - Using SMOTE for class balancing...
+2026-02-26 11:50:58,056 - __main__ - INFO - Training model...
+2026-02-26 11:53:16,315 - __main__ - INFO - 
+Test Set Performance:
+2026-02-26 11:53:16,315 - __main__ - INFO -   Accuracy:  0.4727
+2026-02-26 11:53:16,315 - __main__ - INFO -   Precision: 0.0985
+2026-02-26 11:53:16,315 - __main__ - INFO -   Recall:    0.8271
+2026-02-26 11:53:16,315 - __main__ - INFO -   F1-Score:  0.1761
+2026-02-26 11:53:16,315 - __main__ - INFO - 
+Running 5-fold time series cross-validation...
+2026-02-26 11:58:31,443 - __main__ - INFO -   CV Accuracy: 0.6295 (+/- 0.0339)
+2026-02-26 11:58:31,446 - __main__ - INFO - 
+Confusion Matrix:
+2026-02-26 11:58:31,446 - __main__ - INFO -   TN=34354  FP=42541
+2026-02-26 11:58:31,446 - __main__ - INFO -   FN= 972  TP=4650
+2026-02-26 11:58:31,485 - __main__ - INFO - ✓ thunderstorm_12h training complete
+2026-02-26 11:58:31,486 - __main__ - INFO - 
+Features for thunderstorm: 72
+2026-02-26 11:58:31,568 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 11:58:31,612 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 11:58:31,614 - __main__ - INFO - 
+============================================================
+2026-02-26 11:58:31,614 - __main__ - INFO - Training: thunderstorm @ 24h horizon
+2026-02-26 11:58:31,614 - __main__ - INFO - ============================================================
+2026-02-26 11:58:31,614 - __main__ - INFO - Training samples: 330067
+2026-02-26 11:58:31,614 - __main__ - INFO -   Positive (hazard): 47845 (14.5%)
+2026-02-26 11:58:31,614 - __main__ - INFO -   Negative (no hazard): 282222 (85.5%)
+2026-02-26 11:58:31,614 - __main__ - INFO - Using SMOTE for class balancing...
+2026-02-26 11:58:31,614 - __main__ - INFO - Training model...
+2026-02-26 12:00:40,216 - __main__ - INFO - 
+Test Set Performance:
+2026-02-26 12:00:40,216 - __main__ - INFO -   Accuracy:  0.4640
+2026-02-26 12:00:40,216 - __main__ - INFO -   Precision: 0.1766
+2026-02-26 12:00:40,216 - __main__ - INFO -   Recall:    0.8984
+2026-02-26 12:00:40,216 - __main__ - INFO -   F1-Score:  0.2951
+2026-02-26 12:00:40,216 - __main__ - INFO - 
+Running 5-fold time series cross-validation...
+t^T2026-02-26 12:05:43,129 - __main__ - INFO -   CV Accuracy: 0.5772 (+/- 0.0406)
+2026-02-26 12:05:43,132 - __main__ - INFO - 
+Confusion Matrix:
+2026-02-26 12:05:43,132 - __main__ - INFO -   TN=29030  FP=43181
+2026-02-26 12:05:43,132 - __main__ - INFO -   FN=1047  TP=9259
+2026-02-26 12:05:43,164 - __main__ - INFO - ✓ thunderstorm_24h training complete
+2026-02-26 12:05:43,164 - __main__ - INFO - 
+Features for thunderstorm: 72
+2026-02-26 12:05:43,251 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 12:05:43,300 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 12:05:43,301 - __main__ - INFO - 
+============================================================
+2026-02-26 12:05:43,301 - __main__ - INFO - Training: thunderstorm @ 48h horizon
+2026-02-26 12:05:43,301 - __main__ - INFO - ============================================================
+2026-02-26 12:05:43,302 - __main__ - INFO - Training samples: 330067
+2026-02-26 12:05:43,302 - __main__ - INFO -   Positive (hazard): 73576 (22.3%)
+2026-02-26 12:05:43,302 - __main__ - INFO -   Negative (no hazard): 256491 (77.7%)
+2026-02-26 12:05:43,302 - __main__ - INFO - Using SMOTE for class balancing...
+2026-02-26 12:05:43,302 - __main__ - INFO - Training model...
+2026-02-26 12:07:58,334 - __main__ - INFO - 
+Test Set Performance:
+2026-02-26 12:07:58,334 - __main__ - INFO -   Accuracy:  0.5284
+2026-02-26 12:07:58,334 - __main__ - INFO -   Precision: 0.2966
+2026-02-26 12:07:58,334 - __main__ - INFO -   Recall:    0.9225
+2026-02-26 12:07:58,334 - __main__ - INFO -   F1-Score:  0.4489
+2026-02-26 12:07:58,334 - __main__ - INFO - 
+Running 5-fold time series cross-validation...
+2026-02-26 12:12:54,938 - __main__ - INFO -   CV Accuracy: 0.6180 (+/- 0.0512)
+2026-02-26 12:12:54,940 - __main__ - INFO - 
+Confusion Matrix:
+2026-02-26 12:12:54,940 - __main__ - INFO -   TN=27747  FP=37587
+2026-02-26 12:12:54,940 - __main__ - INFO -   FN=1331  TP=15852
+2026-02-26 12:12:54,985 - __main__ - INFO - ✓ thunderstorm_48h training complete
+2026-02-26 12:12:54,986 - __main__ - INFO - 
+Features for severe_storm: 72
+2026-02-26 12:12:55,070 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 12:12:55,115 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 12:12:55,115 - __main__ - WARNING - Skipping severe_storm_12h: 0 positive samples in dataset.
+2026-02-26 12:12:55,116 - __main__ - INFO - 
+Features for severe_storm: 72
+2026-02-26 12:12:55,198 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 12:12:55,241 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 12:12:55,241 - __main__ - WARNING - Skipping severe_storm_24h: 0 positive samples in dataset.
+2026-02-26 12:12:55,242 - __main__ - INFO - 
+Features for severe_storm: 72
+2026-02-26 12:12:55,324 - __main__ - INFO -   Dropped 3 sparse features (>80% NaN). Examples: ['sea_level', 'grnd_level', 'wind_gust']
+2026-02-26 12:12:55,368 - __main__ - INFO - Valid samples after NaN removal: 412584
+2026-02-26 12:12:55,368 - __main__ - WARNING - Skipping severe_storm_48h: 0 positive samples in dataset.
+2026-02-26 12:12:55,372 - __main__ - INFO - 
+✓ Training summary saved to models/training_summary.json
+2026-02-26 12:12:55,372 - __main__ - INFO - 
+================================================================================
+2026-02-26 12:12:55,372 - __main__ - INFO - ALL MODELS TRAINING COMPLETE
+2026-02-26 12:12:55,372 - __main__ - INFO - ================================================================================
+2026-02-26 12:12:55,372 - __main__ - INFO - Successfully trained: 9/9 models
+2026-02-26 12:12:55,373 - __main__ - INFO - 
+✅ Training complete!
+2026-02-26 12:12:55,373 - __main__ - INFO - Models saved to: models
+
+it's done training the first mode, should i run it again with --use-cache? or is it okay to proceed?

@@ -304,6 +304,24 @@ class DataPreparator:
                 'quality_report': quality_report
             })
         
+        # Step 4: Ensure sorted by time column
+        if time_col in result_df.columns:
+            result_df = result_df.sort_values(time_col, ascending=True).reset_index(drop=True)
+            logger.info(f"\n[4/4] Ensured ascending sort by '{time_col}'.")
+        
+        # Step 5: Create Celsius column aliases for compatibility.
+        # OpenWeather CSV exports may use bare names ('temp', 'feels_like', 'dew_point')
+        # while labelers/features expect '_c' suffixed names.
+        celsius_aliases = [
+            ('temp', 'temp_c'),
+            ('feels_like', 'feels_like_c'),
+            ('dew_point', 'dew_point_c'),
+        ]
+        for src_col, alias_col in celsius_aliases:
+            if src_col in result_df.columns and alias_col not in result_df.columns:
+                result_df[alias_col] = result_df[src_col]
+                logger.info(f"  Created column alias: '{alias_col}' → '{src_col}'")
+        
         report['output_shape'] = result_df.shape
         
         logger.info("\n" + "=" * 60)
@@ -320,33 +338,45 @@ class DataPreparator:
         time_col: str = 'dt',
         parse_dates: bool = True
     ) -> pd.DataFrame:
-        """
-        Load weather data from CSV file
-        
-        Args:
-            csv_path: Path to CSV file
-            time_col: Name of timestamp column
-            parse_dates: Whether to parse timestamp column as datetime
-        
-        Returns:
-            DataFrame with weather data
-        """
         csv_file = Path(csv_path)
-        
+
         if not csv_file.exists():
             raise FileNotFoundError(f"CSV file not found: {csv_path}")
-        
+
         logger.info(f"Loading weather data from {csv_path}...")
-        
-        if parse_dates:
-            df = pd.read_csv(csv_path, parse_dates=[time_col])
-        else:
+
+        # dt is unix seconds → never parse_dates on it
+        if time_col == 'dt' or not parse_dates:
             df = pd.read_csv(csv_path)
-        
+        else:
+            df = pd.read_csv(csv_path, parse_dates=[time_col])
+
         logger.info(f"✓ Loaded {len(df)} records from CSV")
         logger.info(f"  Columns: {list(df.columns)}")
-        logger.info(f"  Date range: {df[time_col].min()} to {df[time_col].max()}")
-        
+
+        if time_col not in df.columns:
+            logger.warning(f"Time column '{time_col}' not found in CSV columns!")
+            return df
+
+        # Coerce dt to numeric int64
+        if time_col == 'dt':
+            df[time_col] = pd.to_numeric(df[time_col], errors='coerce')
+            before = len(df)
+            df = df.dropna(subset=[time_col]).copy()
+            dropped = before - len(df)
+            if dropped:
+                logger.warning(f"Dropped {dropped} rows with non-numeric '{time_col}'")
+            df[time_col] = df[time_col].astype("int64")
+
+        logger.info(f"  Time column '{time_col}' dtype: {df[time_col].dtype}")
+        logger.info(f"  Time range: {df[time_col].min()} to {df[time_col].max()}")
+
+        # Always sort by time_col for downstream horizon logic
+        df = df.sort_values(time_col, ascending=True).reset_index(drop=True)
+        logger.info(
+            f"  Sorted ascending by '{time_col}'. Monotonic increasing: {df[time_col].is_monotonic_increasing}"
+        )
+
         return df
     
     def save_to_csv(
