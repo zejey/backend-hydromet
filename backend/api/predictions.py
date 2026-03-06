@@ -23,12 +23,13 @@ from backend.ml.multi_model_manager import MultiModelManager
 from backend.ml.hazard_analyzer import HazardAnalyzer
 from backend.services.alert_dispatcher import get_alert_dispatcher
 from backend.utils.logger import get_logger
+from backend.models.prediction import HazardPrediction, NotificationTemplate
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/predictions", tags=["Weather Predictions"])
 
-# Legacy predictor kept for /predict-custom and /forecast endpoints
+# Legacy predictor kept for /predict-custom endpoint
 predictor = WeatherPredictor()
 
 # Primary multi-hazard predictor for /predict endpoint
@@ -214,7 +215,7 @@ async def predict_from_weather_data(request: PredictionRequest):
         }
 
         # Get notification template for backwards compatibility
-        hazard_info = HazardAnalyzer.get_hazard_info(hazard_type)
+        hazard_info = HazardAnalyzer.get_hazard_info(hazard_type or "None")
 
         logger.info(
             f"Multi-hazard prediction: event={event}, "
@@ -239,8 +240,8 @@ async def predict_from_weather_data(request: PredictionRequest):
 
         return PredictionResponse(
             success=True,
-            prediction=prediction,
-            notification=hazard_info,
+            prediction=HazardPrediction(**prediction),
+            notification=NotificationTemplate(**hazard_info) if hazard_info else None,
             multi_hazard=results,
         )
 
@@ -290,9 +291,10 @@ async def predict_from_custom_features(request: CustomFeaturesRequest):
 
         return PredictionResponse(
             success=True,
-            prediction=prediction,
-            notification=hazard_info,
+            prediction=HazardPrediction(**prediction),
+            notification=NotificationTemplate(**hazard_info) if hazard_info else None,
             features=request.features.model_dump(),
+            multi_hazard=None
         )
 
     except Exception as e:
@@ -308,36 +310,35 @@ async def predict_forecast(request: ForecastPredictionRequest):
     """
     Predict hazards for multiple forecast time points
 
-    Analyzes a list of weather forecasts and predicts hazards
+    Analyzes a list of weather forecasts and predicts hazards using the
+    multi-hazard, multi-horizon system.
     ✅ SENDS SEMAPHORE NOTIFICATION FOR FORECAST HAZARDS
     """
     try:
-        # Make batch predictions
-        predictions = predictor.predict_batch(request.forecasts, request.source)
+        # Run multi-hazard prediction for each forecast point
+        timeline = []
+        for point in request.forecasts:
+            result = multi_predictor.predict_from_weather_data(point, source=request.source)
+            timeline.append(result)
 
-        # Count hazard events
-        hazard_events = [p for p in predictions if p["prediction"]["event"] == 1]
+        # Build summary from timeline
+        summary = _create_multi_forecast_summary(timeline)
 
-        # Add risk levels and notifications
-        for pred in predictions:
-            pred["prediction"]["risk_level"] = HazardAnalyzer.get_risk_level(pred["prediction"])
-            pred["notification"] = HazardAnalyzer.get_hazard_info(pred["prediction"]["hazard_type"])
-
-        # Create summary
-        summary = _create_forecast_summary(predictions, hazard_events)
-
-        logger.info(f"Forecast predictions: {len(hazard_events)}/{len(predictions)} hazard events")
+        hazard_events_count = summary["hazard_events_count"]
+        logger.info(f"Forecast predictions: {hazard_events_count}/{len(timeline)} hazard events")
 
         # ✅ Send Semaphore notification for forecast hazards
-        if hazard_events:
+        if hazard_events_count > 0:
             try:
-                first_hazard = hazard_events[0]["prediction"]
-                logger.info(
-                    f"🚨 Forecast hazards detected ({len(hazard_events)}). "
-                    f"Dispatching Semaphore notification..."
-                )
-                _dispatch_legacy_alert(first_hazard)
-                logger.info("✅ Forecast notification dispatched")
+                first_hazard_point = summary.get("next_hazard")
+                if first_hazard_point:
+                    logger.info(
+                        f"🚨 Forecast hazards detected ({hazard_events_count}). "
+                        f"Dispatching Semaphore notification..."
+                    )
+                    dispatcher = get_alert_dispatcher()
+                    dispatcher.dispatch_from_predictions(first_hazard_point)
+                    logger.info("✅ Forecast notification dispatched")
             except Exception as notify_error:
                 logger.error(
                     f"❌ Failed to dispatch forecast notifications: {notify_error}", exc_info=True
@@ -347,9 +348,9 @@ async def predict_forecast(request: ForecastPredictionRequest):
 
         return ForecastPredictionResponse(
             success=True,
-            total_predictions=len(predictions),
-            hazard_events=len(hazard_events),
-            predictions=predictions,
+            total_predictions=len(timeline),
+            hazard_events=hazard_events_count,
+            predictions=timeline,
             summary=summary,
         )
 
@@ -371,7 +372,8 @@ async def get_forecast_summary(
     """
     Get summary of hazards in upcoming forecast period
 
-    Fetches forecast from OpenWeather API and summarizes hazards
+    Fetches forecast from OpenWeather API and summarizes hazards using the
+    multi-hazard, multi-horizon prediction system.
     """
     try:
         from backend.ml.weather_client import OpenWeatherClient
@@ -381,18 +383,14 @@ async def get_forecast_summary(
         cnt = min(hours // 3, 40)  # OpenWeather gives 3-hour intervals, max 40 points
         forecasts = client.get_forecast(cnt=cnt)
 
-        # Make predictions
-        predictions = predictor.predict_batch(forecasts, source)
+        # Run multi-hazard prediction for each forecast point
+        timeline = []
+        for point in forecasts:
+            result = multi_predictor.predict_from_weather_data(point, source=source)
+            timeline.append(result)
 
-        # Filter hazard events
-        hazard_events = [p for p in predictions if p["prediction"]["event"] == 1]
-
-        # Add risk levels
-        for pred in hazard_events:
-            pred["prediction"]["risk_level"] = HazardAnalyzer.get_risk_level(pred["prediction"])
-
-        # Create summary
-        summary = _create_forecast_summary(predictions, hazard_events)
+        # Create summary from timeline
+        summary = _create_multi_forecast_summary(timeline)
 
         return ForecastSummary(**summary)
 
@@ -402,7 +400,6 @@ async def get_forecast_summary(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Forecast summary failed: {str(e)}",
         )
-
 
 @router.get("/model/info", response_model=ModelInfo)
 async def get_model_info():
@@ -459,44 +456,55 @@ async def get_model_info():
         )
 
 
-def _create_forecast_summary(predictions: list, hazard_events: list) -> dict:
-    """Create summary of forecast predictions"""
+def _create_multi_forecast_summary(timeline: list) -> dict:
+    """Create summary of multi-hazard forecast predictions from a per-point timeline."""
 
-    # Get unique hazard types
-    hazard_types = list(
-        set([
-            p["prediction"]["hazard_type"]
-            for p in hazard_events
-            if p["prediction"]["hazard_type"] != "None"
-        ])
-    )
-
-    # Count high-risk events
-    high_risk_count = len([
-        p
-        for p in hazard_events
-        if HazardAnalyzer.get_risk_level(p["prediction"]) in ["high", "critical"]
-    ])
-
-    # Get next hazard
-    next_hazard = hazard_events[0] if hazard_events else None
-
-    # Create timeline of hazard events
-    timeline = [
-        {
-            "timestamp": p["timestamp"],
-            "hazard_type": p["prediction"]["hazard_type"],
-            "risk_level": HazardAnalyzer.get_risk_level(p["prediction"]),
-            "probability": p["prediction"]["probability"],
-        }
-        for p in hazard_events
+    # Points where any hazard was detected
+    hazard_event_points = [
+        p for p in timeline
+        if p.get("success") and p.get("summary", {}).get("total_hazards_detected", 0) > 0
     ]
 
+    # Collect unique display hazard types
+    hazard_types = set()
+    for point in hazard_event_points:
+        for hazard, horizons in point.get("predictions", {}).items():
+            for pred_info in horizons.values():
+                if pred_info.get("hazard_detected") and pred_info.get("available"):
+                    hazard_types.add(
+                        _HAZARD_TYPE_DISPLAY.get(hazard, hazard.replace("_", " ").title())
+                    )
+
+    # Count high/critical risk events
+    high_risk_count = sum(
+        1 for p in hazard_event_points
+        if multi_predictor.get_risk_level(p) in ("high", "critical")
+    )
+
+    # Next upcoming hazard (first point with a detected hazard)
+    next_hazard = hazard_event_points[0] if hazard_event_points else None
+
+    # Build condensed timeline of hazard events
+    timeline_events = []
+    for point in hazard_event_points:
+        highest = point.get("summary", {}).get("highest_risk_hazard")
+        if highest:
+            hazard_key = highest["hazard"]
+            hazard_type = _HAZARD_TYPE_DISPLAY.get(
+                hazard_key, hazard_key.replace("_", " ").title()
+            )
+            timeline_events.append({
+                "timestamp": point.get("timestamp"),
+                "hazard_type": hazard_type,
+                "risk_level": multi_predictor.get_risk_level(point),
+                "probability": highest["probability"],
+            })
+
     return {
-        "total_records": len(predictions),
-        "hazard_events_count": len(hazard_events),
-        "hazard_types": hazard_types,
+        "total_records": len(timeline),
+        "hazard_events_count": len(hazard_event_points),
+        "hazard_types": list(hazard_types),
         "high_risk_count": high_risk_count,
         "next_hazard": next_hazard,
-        "timeline": timeline,
+        "timeline": timeline_events,
     }
