@@ -80,34 +80,41 @@ class HazardLabeler:
         """
         threshold = self.thresholds["heat_stress"]["feels_like_c"]
         
-        # Ensure sorted by time
-        df = df.sort_values(time_col).reset_index(drop=True)
+        # Sort by time, preserving original index
+        df_sorted = df.sort_values(time_col).copy()
         
         # Convert timestamp to datetime if needed
-        if not pd.api.types.is_datetime64_any_dtype(df[time_col]):
-            df[time_col] = pd.to_datetime(df[time_col], unit='s', errors='coerce')
+        if not pd.api.types.is_datetime64_any_dtype(df_sorted[time_col]):
+            df_sorted[time_col] = pd.to_datetime(df_sorted[time_col], unit='s', errors='coerce')
         
-        labels = []
-        
-        for idx in range(len(df)):
-            current_time = df.loc[idx, time_col]
-            horizon_end = current_time + pd.Timedelta(hours=horizon_hours)
-            
-            # Get all records within horizon window
-            future_mask = (df[time_col] > current_time) & (df[time_col] <= horizon_end)
-            future_data = df.loc[future_mask, feels_like_col]
-            
-            # Check if max feels_like exceeds threshold
-            if len(future_data) > 0:
-                max_feels_like = future_data.max()
-                label = 1 if (max_feels_like >= threshold and not pd.isna(max_feels_like)) else 0
+        # Detect data frequency to compute rolling window size in rows
+        time_diffs = df_sorted[time_col].diff().dropna()
+        if len(time_diffs) > 0:
+            median_interval = time_diffs.median()
+            if hasattr(median_interval, 'total_seconds'):
+                median_interval_hours = median_interval.total_seconds() / 3600
             else:
-                # No future data available - cannot label
-                label = 0
-            
-            labels.append(label)
+                median_interval_hours = float(median_interval) / 3600
+            window_rows = max(1, round(horizon_hours / median_interval_hours))
+        else:
+            window_rows = horizon_hours
         
-        return pd.Series(labels, index=df.index)
+        feels = df_sorted[feels_like_col].fillna(0)
+        
+        # Reverse rolling to look FORWARD: reverse series, roll backward, reverse back.
+        # shift(-1) excludes the current row so the window covers strictly future rows.
+        labels = (
+            feels[::-1]
+            .rolling(window=window_rows, min_periods=1)
+            .max()[::-1]
+            .shift(-1)
+            >= threshold
+        ).fillna(False).astype(int)
+        
+        # Map results back to the original DataFrame index
+        result = pd.Series(0, index=df.index)
+        result.loc[df_sorted.index] = labels.values
+        return result
     
     def label_heavy_rain(
         self,
@@ -132,36 +139,41 @@ class HazardLabeler:
         """
         threshold = self.thresholds["heavy_rain"]["rain_1h_mm"]
         
-        # Ensure sorted by time
-        df = df.sort_values(time_col).reset_index(drop=True)
+        # Sort by time, preserving original index
+        df_sorted = df.sort_values(time_col).copy()
         
         # Convert timestamp to datetime if needed
-        if not pd.api.types.is_datetime64_any_dtype(df[time_col]):
-            df[time_col] = pd.to_datetime(df[time_col], unit='s', errors='coerce')
+        if not pd.api.types.is_datetime64_any_dtype(df_sorted[time_col]):
+            df_sorted[time_col] = pd.to_datetime(df_sorted[time_col], unit='s', errors='coerce')
+        
+        # Detect data frequency to compute rolling window size in rows
+        time_diffs = df_sorted[time_col].diff().dropna()
+        if len(time_diffs) > 0:
+            median_interval = time_diffs.median()
+            if hasattr(median_interval, 'total_seconds'):
+                median_interval_hours = median_interval.total_seconds() / 3600
+            else:
+                median_interval_hours = float(median_interval) / 3600
+            window_rows = max(1, round(horizon_hours / median_interval_hours))
+        else:
+            window_rows = horizon_hours
         
         # Fill missing rain values with 0 (assumption: missing = no rain)
-        df[rain_col] = df[rain_col].fillna(0)
+        rain = df_sorted[rain_col].fillna(0)
         
-        labels = []
+        # Reverse rolling to look FORWARD; shift(-1) excludes the current row.
+        labels = (
+            rain[::-1]
+            .rolling(window=window_rows, min_periods=1)
+            .max()[::-1]
+            .shift(-1)
+            >= threshold
+        ).fillna(False).astype(int)
         
-        for idx in range(len(df)):
-            current_time = df.loc[idx, time_col]
-            horizon_end = current_time + pd.Timedelta(hours=horizon_hours)
-            
-            # Get all records within horizon window
-            future_mask = (df[time_col] > current_time) & (df[time_col] <= horizon_end)
-            future_data = df.loc[future_mask, rain_col]
-            
-            # Check if max rain exceeds threshold
-            if len(future_data) > 0:
-                max_rain = future_data.max()
-                label = 1 if max_rain >= threshold else 0
-            else:
-                label = 0
-            
-            labels.append(label)
-        
-        return pd.Series(labels, index=df.index)
+        # Map results back to the original DataFrame index
+        result = pd.Series(0, index=df.index)
+        result.loc[df_sorted.index] = labels.values
+        return result
     
     def label_thunderstorm(
         self,
@@ -189,33 +201,42 @@ class HazardLabeler:
         """
         id_min, id_max = self.thresholds["thunderstorm"]["weather_id_range"]
         
-        # Ensure sorted by time
-        df = df.sort_values(time_col).reset_index(drop=True)
+        # Sort by time, preserving original index
+        df_sorted = df.sort_values(time_col).copy()
         
         # Convert timestamp to datetime if needed
-        if not pd.api.types.is_datetime64_any_dtype(df[time_col]):
-            df[time_col] = pd.to_datetime(df[time_col], unit='s', errors='coerce')
+        if not pd.api.types.is_datetime64_any_dtype(df_sorted[time_col]):
+            df_sorted[time_col] = pd.to_datetime(df_sorted[time_col], unit='s', errors='coerce')
         
-        labels = []
-        
-        for idx in range(len(df)):
-            current_time = df.loc[idx, time_col]
-            horizon_end = current_time + pd.Timedelta(hours=horizon_hours)
-            
-            # Get all records within horizon window
-            future_mask = (df[time_col] > current_time) & (df[time_col] <= horizon_end)
-            future_weather_ids = df.loc[future_mask, weather_id_col]
-            
-            # Check if any thunderstorm code appears
-            if len(future_weather_ids) > 0:
-                has_thunder = future_weather_ids.between(id_min, id_max, inclusive='both').any()
-                label = 1 if has_thunder else 0
+        # Detect data frequency to compute rolling window size in rows
+        time_diffs = df_sorted[time_col].diff().dropna()
+        if len(time_diffs) > 0:
+            median_interval = time_diffs.median()
+            if hasattr(median_interval, 'total_seconds'):
+                median_interval_hours = median_interval.total_seconds() / 3600
             else:
-                label = 0
-            
-            labels.append(label)
+                median_interval_hours = float(median_interval) / 3600
+            window_rows = max(1, round(horizon_hours / median_interval_hours))
+        else:
+            window_rows = horizon_hours
         
-        return pd.Series(labels, index=df.index)
+        # Binary indicator: 1 if weather_id is in thunderstorm range
+        is_thunder = df_sorted[weather_id_col].between(id_min, id_max, inclusive='both').astype(int)
+        
+        # Reverse rolling max: any 1 in the forward window means thunderstorm present.
+        # shift(-1) excludes the current row so the window covers strictly future rows.
+        labels = (
+            is_thunder[::-1]
+            .rolling(window=window_rows, min_periods=1)
+            .max()[::-1]
+            .shift(-1)
+            >= 1
+        ).fillna(False).astype(int)
+        
+        # Map results back to the original DataFrame index
+        result = pd.Series(0, index=df.index)
+        result.loc[df_sorted.index] = labels.values
+        return result
     
     def label_severe_storm(
         self,
@@ -254,57 +275,71 @@ class HazardLabeler:
         rain_thresh = config.get("rain_threshold_mm", 10.0)
         include_thunder = config.get("include_thunder", False)
         
-        # Ensure sorted by time
-        df = df.sort_values(time_col).reset_index(drop=True)
+        # Sort by time, preserving original index
+        df_sorted = df.sort_values(time_col).copy()
         
         # Convert timestamp to datetime if needed
-        if not pd.api.types.is_datetime64_any_dtype(df[time_col]):
-            df[time_col] = pd.to_datetime(df[time_col], unit='s', errors='coerce')
+        if not pd.api.types.is_datetime64_any_dtype(df_sorted[time_col]):
+            df_sorted[time_col] = pd.to_datetime(df_sorted[time_col], unit='s', errors='coerce')
         
-        labels = []
+        # Detect data frequency to compute rolling window size in rows
+        time_diffs = df_sorted[time_col].diff().dropna()
+        if len(time_diffs) > 0:
+            median_interval = time_diffs.median()
+            if hasattr(median_interval, 'total_seconds'):
+                median_interval_hours = median_interval.total_seconds() / 3600
+            else:
+                median_interval_hours = float(median_interval) / 3600
+            window_rows = max(1, round(horizon_hours / median_interval_hours))
+        else:
+            window_rows = horizon_hours
         
-        for idx in range(len(df)):
-            current_time = df.loc[idx, time_col]
-            horizon_end = current_time + pd.Timedelta(hours=horizon_hours)
-            
-            # Get all records within horizon window
-            future_mask = (df[time_col] > current_time) & (df[time_col] <= horizon_end)
-            future_data = df.loc[future_mask]
-            
-            if len(future_data) == 0:
-                labels.append(0)
-                continue
-            
-            # Check pressure and wind conditions
-            min_pressure = future_data[pressure_col].min()
-            max_wind = future_data[wind_speed_col].max()
-            
-            # Core condition: low pressure + high wind
-            pressure_cond = (not pd.isna(min_pressure)) and (min_pressure <= pressure_thresh)
-            wind_cond = (not pd.isna(max_wind)) and (max_wind >= wind_thresh)
-            
-            severe_storm = pressure_cond and wind_cond
-            
-            # Optional: also require rain
-            if severe_storm and include_rain and rain_col:
-                if rain_col in future_data.columns:
-                    max_rain = future_data[rain_col].fillna(0).max()
-                    severe_storm = severe_storm and (max_rain >= rain_thresh)
-                else:
-                    severe_storm = False
-            
-            # Optional: also require thunderstorm
-            if severe_storm and include_thunder and weather_id_col:
-                if weather_id_col in future_data.columns:
-                    id_min, id_max = self.thresholds["thunderstorm"]["weather_id_range"]
-                    has_thunder = future_data[weather_id_col].between(id_min, id_max, inclusive='both').any()
-                    severe_storm = severe_storm and has_thunder
-                else:
-                    severe_storm = False
-            
-            labels.append(1 if severe_storm else 0)
+        # Reverse rolling to look FORWARD; shift(-1) excludes the current row.
+        min_pressure = (
+            df_sorted[pressure_col][::-1]
+            .rolling(window=window_rows, min_periods=1)
+            .min()[::-1]
+            .shift(-1)
+        )
+        max_wind = (
+            df_sorted[wind_speed_col][::-1]
+            .rolling(window=window_rows, min_periods=1)
+            .max()[::-1]
+            .shift(-1)
+        )
         
-        return pd.Series(labels, index=df.index)
+        # Core condition: low pressure AND high wind
+        storm_mask = (min_pressure <= pressure_thresh) & (max_wind >= wind_thresh)
+        
+        # Optional: also require heavy rain
+        if include_rain and rain_col and rain_col in df_sorted.columns:
+            rain_series = df_sorted[rain_col].fillna(0)
+            max_rain = (
+                rain_series[::-1]
+                .rolling(window=window_rows, min_periods=1)
+                .max()[::-1]
+                .shift(-1)
+            )
+            storm_mask = storm_mask & (max_rain >= rain_thresh)
+        
+        # Optional: also require thunderstorm
+        if include_thunder and weather_id_col and weather_id_col in df_sorted.columns:
+            id_min, id_max = self.thresholds["thunderstorm"]["weather_id_range"]
+            is_thunder = df_sorted[weather_id_col].between(id_min, id_max, inclusive='both').astype(int)
+            max_thunder = (
+                is_thunder[::-1]
+                .rolling(window=window_rows, min_periods=1)
+                .max()[::-1]
+                .shift(-1)
+            )
+            storm_mask = storm_mask & (max_thunder >= 1)
+        
+        labels = storm_mask.fillna(False).astype(int)
+        
+        # Map results back to the original DataFrame index
+        result = pd.Series(0, index=df.index)
+        result.loc[df_sorted.index] = labels.values
+        return result
     
     def create_all_labels(
         self,
@@ -330,6 +365,7 @@ class HazardLabeler:
         result_df = df.copy()
         
         logger.info(f"Creating labels for {len(hazards)} hazards across {len(horizons)} horizons")
+        logger.info(f"Using vectorized labeling (O(n) vs O(n²) — ~{len(df)**2 // 1_000_000}M ops saved)")
         
         # Sanity check: log raw event counts so users can understand why labels may be sparse
         logger.info("\n--- Raw event counts (sanity check) ---")
@@ -376,8 +412,17 @@ class HazardLabeler:
                     pos_count = result_df[col_name].sum()
                     total_count = len(result_df[col_name])
                     pct = 100 * pos_count / total_count if total_count > 0 else 0
-                    logger.info(f"    ✓ {col_name}: {pos_count}/{total_count} positive ({pct:.1f}%), NaNs: {nan_count}")
                     
+                    # Skip severe_storm columns that have no positive examples
+                    if pos_count == 0:
+                        logger.warning(f"    ⚠️ {col_name}: 0 positive labels — dropping (model cannot train on this)")
+                        result_df.drop(columns=[col_name], inplace=True)
+                        continue
+                    
+                    nan_count = result_df[col_name].isna().sum()
+                    pct = 100 * pos_count / total_count
+                    logger.info(f"    ✓ {col_name}: {pos_count}/{total_count} positive ({pct:.1f}%), NaNs: {nan_count}")
+
                 except Exception as e:
                     logger.error(f"    ✗ Failed to label {col_name}: {e}")
                     result_df[col_name] = 0
