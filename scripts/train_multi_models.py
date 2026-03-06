@@ -63,6 +63,8 @@ class MultiModelTrainer:
             "nb_var_smoothing": 1e-9,
             "use_smote": True,
             "smote_k_neighbors": 3,  # Lower for smaller positive class
+            "smote_max_ratio": 0.20,  # cap minority at 20% of majority
+            "smote_min_ratio": 0.05,  # always synthesize at least to 5%
         }
 
         # Merge user-provided config overrides (e.g., only test_size) into defaults
@@ -103,7 +105,25 @@ class MultiModelTrainer:
             return obj.isoformat()
 
         return obj 
-    
+
+    @staticmethod
+    def _smote_sampling_strategy(pos_count: int, neg_count: int, config: dict) -> float:
+        """
+        Compute a safe SMOTE sampling_strategy ratio to avoid over-synthesizing
+        on extremely imbalanced datasets.
+
+        Returns the target minority/majority ratio for SMOTE.
+        Capped at smote_max_ratio (default 0.20) to prevent precision collapse.
+        """
+        if neg_count == 0:
+            return 1.0
+        current_ratio = pos_count / neg_count
+        max_ratio = config.get("smote_max_ratio", 0.20)
+        min_ratio = config.get("smote_min_ratio", 0.05)
+        # Gentle 3x boost from current, but cap at max_ratio
+        target = min(max_ratio, max(current_ratio * 3, min_ratio))
+        return float(target)
+
     def prepare_training_data(
         self,
         csv_path: Optional[str] = None,
@@ -219,9 +239,14 @@ class MultiModelTrainer:
         use_smote = self.config["use_smote"] and pos_count >= self.config["smote_k_neighbors"] + 1
         
         if use_smote:
-            logger.info("Using SMOTE for class balancing...")
+            sampling_strategy = MultiModelTrainer._smote_sampling_strategy(pos_count, neg_count, self.config)
+            logger.info(f"Using SMOTE for class balancing (sampling_strategy={sampling_strategy:.3f})...")
             pipeline_steps = [
-                ('smote', SMOTE(k_neighbors=self.config["smote_k_neighbors"], random_state=self.config["random_state"])),
+                ('smote', SMOTE(
+                    sampling_strategy=sampling_strategy,
+                    k_neighbors=self.config["smote_k_neighbors"],
+                    random_state=self.config["random_state"]
+                )),
                 ('scaler', PowerTransformer(method='yeo-johnson')),
                 ('selector', SelectKBest(
                     score_func=mutual_info_classif if self.config["use_mutual_info"] else None,
@@ -306,7 +331,8 @@ class MultiModelTrainer:
     def train_all_models(
         self,
         data: pd.DataFrame,
-        save_models: bool = True
+        save_models: bool = True,
+        hazards_filter: Optional[List[str]] = None
     ) -> Dict:
         """
         Train all 12 models (4 hazards × 3 horizons)
@@ -316,9 +342,16 @@ class MultiModelTrainer:
         - Impute remaining NaNs so a few optional OpenWeather fields don't nuke all rows
         - Skip models with not enough samples or only-one-class y
         """
+        hazards_to_train = hazards_filter if hazards_filter else self.hazards
+
         logger.info("\n" + "=" * 80)
         logger.info("TRAINING ALL MODELS (4 hazards × 3 horizons = 12 models)")
         logger.info("=" * 80)
+        logger.info(f"Training hazards: {hazards_to_train}")
+
+        if hazards_filter:
+            logger.info(f"⚡ Partial retrain: only {hazards_to_train} will be retrained")
+            logger.info("   (other hazard models are preserved from previous run)")
 
         results = {
             "training_timestamp": datetime.now().isoformat(),
@@ -334,7 +367,7 @@ class MultiModelTrainer:
         all_features = [col for col in data.columns if col not in exclude_cols]
         logger.info(f"\nTotal features available: {len(all_features)}")
 
-        for hazard in self.hazards:
+        for hazard in hazards_to_train:
             for horizon in self.horizons:
                 label_col = f"{hazard}_{horizon}h"
 
@@ -530,6 +563,14 @@ def main():
     parser.add_argument('--use-cache', action='store_true', help='Use cached prepared+labeled dataset (Parquet) if available')
     parser.add_argument('--refresh-cache', action='store_true', help='Rebuild cache even if it exists')
     parser.add_argument('--cache-path', type=str, default='models/cache/prepared_labeled.parquet', help='Path to Parquet cache file')
+    parser.add_argument(
+        '--hazards',
+        type=str,
+        nargs='+',
+        default=None,
+        choices=['heat_stress', 'heavy_rain', 'thunderstorm', 'severe_storm'],
+        help='Hazards to train (default: all). e.g. --hazards heavy_rain thunderstorm'
+    )
     
     args = parser.parse_args()
     
@@ -561,7 +602,7 @@ def main():
     )
         
     # Train all models
-    results = trainer.train_all_models(data, save_models=True)
+    results = trainer.train_all_models(data, save_models=True, hazards_filter=args.hazards)
     
     logger.info("\n✅ Training complete!")
     logger.info(f"Models saved to: {args.models_dir}")
