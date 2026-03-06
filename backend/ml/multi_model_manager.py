@@ -32,6 +32,7 @@ class MultiModelManager:
         if models_dir is None:
             # Try multiple default locations
             candidates = [
+                Path(__file__).parent.parent.parent / "models",
                 Path(__file__).parent.parent / "scripts" / "models",
                 Path(__file__).parent.parent.parent / "scripts" / "models",
                 Path(__file__).parent / "models",
@@ -44,7 +45,10 @@ class MultiModelManager:
                 # Use first candidate as default (will be created if needed)
                 self.models_dir = candidates[0]
         else:
-            self.models_dir = Path(models_dir)
+            p = Path(models_dir)
+            if not p.is_absolute():
+                p = Path(__file__).parent.parent.parent / p
+            self.models_dir = p
         
         logger.info(f"MultiModelManager initialized with models_dir: {self.models_dir}")
         
