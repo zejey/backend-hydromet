@@ -389,6 +389,9 @@ def get_multi_model_manager(models_dir: Optional[str] = None) -> MultiModelManag
         MultiModelManager instance
     """
     global _multi_model_manager
+
+    if models_dir is None:
+        models_dir = os.getenv("MODELS_DIR")
     
     if _multi_model_manager is None or models_dir is not None:
         _multi_model_manager = MultiModelManager(models_dir=models_dir)
