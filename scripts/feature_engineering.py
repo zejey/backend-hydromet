@@ -49,12 +49,12 @@ def engineer_extended_features(
         df = df.sort_values(time_col).reset_index(drop=True)
     
     # Define key features to engineer
+       # Define key features to engineer
     key_features = [
-        'temp', 'temperature', 'feels_like', 'feels_like_c',
-        'pressure', 'humidity', 'wind_speed', 
+        'temp', 'feels_like', 'feels_like_c',
+        'pressure', 'humidity', 'wind_speed',
         'rain_1h', 'dew_point'
-    ]
-    
+    ] 
     # Filter to only features present in dataframe
     available_features = [f for f in key_features if f in df.columns]
     
@@ -101,53 +101,28 @@ def engineer_extended_features(
     
     return df
 
-
 def engineer_multi_hazard_features(
     df: pd.DataFrame,
     include_extended: bool = True,
     time_col: str = 'timestamp'
 ) -> pd.DataFrame:
     """
-    Full feature engineering pipeline for multi-hazard prediction
-    
-    Combines base feature engineering (from model.py) with extended features
-    
-    Args:
-        df: Raw weather DataFrame
-        include_extended: Whether to include lag/delta/rolling features
-        time_col: Name of timestamp column
-        
-    Returns:
-        DataFrame with all engineered features
-    """
-    try:
-        from model import engineer_features as base_engineer_features
-        
-        logger.info("Starting multi-hazard feature engineering pipeline")
-        logger.info(f"Input shape: {df.shape}")
-        
-        # Step 1: Base feature engineering (from existing model.py)
-        logger.info("[1/2] Applying base feature engineering...")
-        df = base_engineer_features(df)
-        
-        # Step 2: Extended features for multi-hazard
-        if include_extended:
-            logger.info("[2/2] Adding extended lag/delta/rolling features...")
-            df = engineer_extended_features(df, time_col=time_col)
-        
-        logger.info(f"✓ Feature engineering complete. Final shape: {df.shape}")
-        
-        return df
-    except Exception as e:
-        logger.warning(f"Base feature engineering failed: {e}. Using simplified pipeline.")
-        
-        # Fallback: just do extended features
-        if include_extended:
-            logger.info("Applying extended features only...")
-            df = engineer_extended_features(df, time_col=time_col)
-        
-        return df
+    Full feature engineering pipeline for multi-hazard prediction.
 
+    NOTE: Intentionally bypasses the legacy model.py engineer_features()
+    because that function renames columns (e.g. temp → temperature) and
+    adds Meteostat-specific derived features incompatible with the
+    OpenWeather-trained multi-hazard models.
+    """
+    logger.info("Starting multi-hazard feature engineering pipeline")
+    logger.info(f"Input shape: {df.shape}")
+
+    if include_extended:
+        logger.info("[2/2] Adding extended lag/delta/rolling features...")
+        df = engineer_extended_features(df, time_col=time_col)
+
+    logger.info(f"✓ Feature engineering complete. Final shape: {df.shape}")
+    return df
 
 def get_feature_columns_for_hazard(
     df: pd.DataFrame,
@@ -251,32 +226,54 @@ def extract_features_from_openweather_forecast(
         weather_id = weather_list[0].get('id', 800) if weather_list else 800
         
         # Build feature dict (metric units - Celsius, hPa, m/s, mm)
+        # Build feature dict (metric units - Celsius, hPa, m/s, mm)
+        temp_c = main.get('temp', 20)
+        feels_like_c = main.get('feels_like', 20)
+        humidity = main.get('humidity', 60)
+
+        # Estimate dew point from temperature + humidity if not provided by API
+        # Magnus formula approximation: Td ≈ T - ((100 - RH) / 5)
+        dew_point_c = temp_c - ((100 - humidity) / 5.0)
+
         features = {
             'timestamp': timestamp,
             'dt': dt,
-            'temp': main.get('temp', 20),
-            'temperature': main.get('temp', 20),
-            'feels_like': main.get('feels_like', 20),
-            'feels_like_c': main.get('feels_like', 20),
-            'temp_min': main.get('temp_min', main.get('temp', 20)),
-            'temp_max': main.get('temp_max', main.get('temp', 20)),
+            # Location placeholders (models were trained with these columns)
+            'timezone': point.get('timezone', 28800),  # default: UTC+8 (Philippines)
+            'lat': point.get('lat', point.get('coord', {}).get('lat', 14.5995)),
+            'lon': point.get('lon', point.get('coord', {}).get('lon', 120.9842)),
+            # Temperature
+            'temp': temp_c,
+            'temp_c': temp_c,
+            'feels_like': feels_like_c,
+            'feels_like_c': feels_like_c,
+            'temp_min': main.get('temp_min', temp_c),
+            'temp_max': main.get('temp_max', temp_c),
+            # Derived
+            'dew_point': dew_point_c,
+            'dew_point_c': dew_point_c,
+            # Atmospheric
             'pressure': main.get('pressure', 1013),
-            'humidity': main.get('humidity', 60),
+            'humidity': humidity,
+            'visibility': point.get('visibility', 10000),
+            # Wind
             'wind_speed': wind.get('speed', 0),
             'wind_deg': wind.get('deg', 0),
             'wind_gust': wind.get('gust', wind.get('speed', 0)),
-            'clouds_all': clouds.get('all', 0),
+            # Precipitation
             'rain_1h': rain.get('1h', 0),
             'rain_3h': rain.get('3h', 0),
             'snow_1h': snow.get('1h', 0),
             'snow_3h': snow.get('3h', 0),
-            'visibility': point.get('visibility', 10000),
+            # Cloud/weather
+            'clouds_all': clouds.get('all', 0),
             'weather_id': weather_id,
         }
-        
-        # Add dew point if available
+
+        # Override dew_point if API actually provides it (more accurate than estimate)
         if 'dew_point' in main:
             features['dew_point'] = main['dew_point']
+            features['dew_point_c'] = main['dew_point']
         
         records.append(features)
     
@@ -378,4 +375,3 @@ if __name__ == "__main__":
     print("\nFirst few rows:")
     print(forecast_df[['timestamp', 'temp', 'pressure', 'humidity', 'wind_speed']].head())
     
-    print("\n✅ Extended feature engineering tests completed successfully!")
