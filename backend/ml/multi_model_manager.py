@@ -295,10 +295,18 @@ class MultiModelManager:
             Tuple of (prediction, probability)
         """
         model = self.load_model(hazard, horizon, use_cache=True)
-        
+
+        # Align features exactly to what the model was trained on.
+        # This drops extra columns (dt, timestamp, weather_id, wind_gust)
+        # and fills in any missing columns with 0.
+        import pandas as pd
+        if hasattr(features, 'columns'):
+            trained_features = model.named_steps['scaler'].feature_names_in_.tolist()
+            features = features.reindex(columns=trained_features, fill_value=0)
+
         prediction = model.predict(features)[0]
         probability = model.predict_proba(features)[0, 1]
-        
+
         return int(prediction), float(probability)
     
     def predict_all_hazards(
