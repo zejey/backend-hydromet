@@ -43,7 +43,7 @@ class HazardLabeler:
                 "feels_like_c": 38.0,  # Feels like temperature in Celsius
             },
             "heavy_rain": {
-                "rain_1h_mm": 20.0,  # Rain accumulation in 1 hour (mm)
+                "rain_1h_mm": 10.0,  # Rain accumulation in 1 hour (mm)
             },
             "thunderstorm": {
                 "weather_id_range": (200, 232),  # OpenWeather thunderstorm codes
