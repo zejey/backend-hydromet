@@ -3,26 +3,26 @@
   "horizon_hours": 24,
   "train_samples": 330067,
   "test_samples": 82517,
-  "train_pos_samples": 317,
-  "train_pos_pct": 0.09604110680558796,
+  "train_pos_samples": 6562,
+  "train_pos_pct": 1.9880812077547891,
   "used_smote": true,
-  "accuracy": 0.7937758280111977,
-  "precision": 0.02936720661927514,
-  "recall": 0.5840092699884125,
-  "f1_score": 0.05592233009708738,
-  "cv_mean": 0.8427878060751486,
-  "cv_std": 0.03328179218774088,
+  "accuracy": 0.711659415635566,
+  "precision": 0.10947060913505191,
+  "recall": 0.6918662674650699,
+  "f1_score": 0.18903166433757115,
+  "cv_mean": 0.7248041300830743,
+  "cv_std": 0.03853004004795975,
   "confusion_matrix": [
     [
-      64996,
-      16658
+      55951,
+      22558
     ],
     [
-      359,
-      504
+      1235,
+      2773
     ]
   ],
-  "trained_at": "2026-03-07T02:56:37.322591",
+  "trained_at": "2026-03-07T11:24:00.620226",
   "feature_count": 69,
   "feature_names": [
     "timezone",
