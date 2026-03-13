@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any
 import logging
 import asyncio
 
-from api.services.auto_predictor import get_auto_predictor
+from app.services.auto_predictor import get_auto_predictor
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auto-predictor", tags=["Auto-Predictor"])

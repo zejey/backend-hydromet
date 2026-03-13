@@ -4,10 +4,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from api.models.admin_invites import (
+from app.models.admin_invites import (
     AdminInviteCreate, AdminInviteResponse, SetPasswordRequest
 )
-from api.database import get_db_cursor
+from app.database import get_db_cursor
 from passlib.hash import bcrypt
 
 # --- Brevo (Sendinblue) imports ---

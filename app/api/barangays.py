@@ -4,7 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 import uuid
 
-from api.database import get_db_cursor
+from app.database import get_db_cursor
 
 router = APIRouter(prefix="/api/barangays", tags=["Barangays"])
 

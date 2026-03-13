@@ -5,13 +5,13 @@ Handles email verification OTP requests and verification
 
 from fastapi import APIRouter, HTTPException, status
 
-from api.models.email_verification_manager import (
+from app.models.email_verification_manager import (
     EmailVerificationRequest,
     EmailVerificationVerifyRequest,
     EmailVerificationResponse
 )
-from api.services.email_verification_manager import EmailVerificationManager
-from api.database import get_db_cursor
+from app.services.email_verification_manager import EmailVerificationManager
+from app.database import get_db_cursor
 
 router = APIRouter(prefix="/api/email-verification", tags=["Email Verification"])
 

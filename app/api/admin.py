@@ -12,15 +12,15 @@ from pydantic import BaseModel
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 
-from api.models.admin import Admin, AdminCreate, AdminUpdate, AdminResponse
-from api.database import get_db_cursor
+from app.models.admin import Admin, AdminCreate, AdminUpdate, AdminResponse
+from app.database import get_db_cursor
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.environ.get("SECRET_KEY", "SUPER_SECRET_KEY")  # Use a strong, real secret in prod!
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-router = APIRouter(prefix="/api/admins", tags=["Admin Management"])
+router = APIRouter(prefix="/app/admins", tags=["Admin Management"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admins/login")
 
 

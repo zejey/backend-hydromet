@@ -3,12 +3,12 @@ from typing import List
 from datetime import datetime
 import uuid
 
-from api.models.government_agency import (
+from app.models.government_agency import (
     GovernmentAgency,
     GovernmentAgencyCreate,
     GovernmentAgencyUpdate
 )
-from api.database import get_db_cursor
+from app.database import get_db_cursor
 
 router = APIRouter(prefix="/api/government-agencies", tags=["Government Agencies"])
 
