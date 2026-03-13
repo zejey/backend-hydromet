@@ -24,7 +24,7 @@ from imblearn.pipeline import Pipeline as ImbPipeline
 
 from hazard_labeling import HazardLabeler
 from data_preparation import DataPreparator
-from feature_engineering import engineer_extended_features, get_feature_columns_for_hazard
+from app.ml.feature_engineering import engineer_extended_features, get_feature_columns_for_hazard
 
 logger = logging.getLogger(__name__)
 

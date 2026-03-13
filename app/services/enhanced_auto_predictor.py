@@ -11,22 +11,7 @@ import sys
 import os
 
 # Add parent directory to path for config imports
-# NOTE: In production, install package with 'pip install -e .' to avoid this
-try:
-    from scripts.config import (
-        OPENWEATHER_API_KEY,
-        OPENWEATHER_LAT,
-        OPENWEATHER_LON,
-        OPENWEATHER_BASE_URL
-    )
-except ImportError:
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
-    from scripts.config import (
-        OPENWEATHER_API_KEY,
-        OPENWEATHER_LAT,
-        OPENWEATHER_LON,
-        OPENWEATHER_BASE_URL
-    )
+from app.config import Config
 
 import requests
 from app.ml.multi_hazard_predictor import get_multi_hazard_predictor
@@ -58,10 +43,10 @@ class EnhancedAutoPredictor:
             use_multi_hazard: Whether to use multi-hazard predictor (True) or legacy (False)
             enable_alerts: Whether to send SMS alerts
         """
-        self.api_key = OPENWEATHER_API_KEY
-        self.lat = OPENWEATHER_LAT
-        self.lon = OPENWEATHER_LON
-        self.base_url = OPENWEATHER_BASE_URL
+        self.api_key = Config.OPENWEATHER_API_KEY
+        self.lat = Config.OPENWEATHER_LAT
+        self.lon = Config.OPENWEATHER_LON
+        self.base_url = Config.OPENWEATHER_BASE_URL
         
         if not self.api_key:
             raise ValueError("❌ OPENWEATHER_API_KEY not set in .env!")

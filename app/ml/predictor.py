@@ -8,17 +8,18 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import pandas as pd
 
-from model import (
+from app.ml.model_manager import ModelManager
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+from app.ml.model import (
     predict_from_features,
     features_from_openweather_json,
     engineer_features,
     hazard_score
 )
-from hazard_type_mapping import determine_hazard_type
-from backend.ml.model_manager import ModelManager
-from backend.utils.logger import get_logger
-
-logger = get_logger(__name__)
+from app.ml.hazard_type_mapping import determine_hazard_type
 
 
 class WeatherPredictor:

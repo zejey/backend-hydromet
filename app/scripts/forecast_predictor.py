@@ -15,8 +15,8 @@ import requests
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
-from model import predict_from_features, features_from_openweather_json
-from hazard_type_mapping import determine_hazard_type
+from app.ml.model import predict_from_features, features_from_openweather_json
+from app.ml.hazard_type_mapping import determine_hazard_type
 from logger_util import get_logger
 
 load_dotenv()

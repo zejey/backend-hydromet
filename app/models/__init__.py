@@ -2,19 +2,19 @@
 Pydantic models for request/response validation
 """
 
-from backend.models.user import (
+from app.models.user import (
     User, UserCreate, UserUpdate, 
     CheckUserRequest, CheckUserResponse, 
     LoginRequest, LoginResponse
 )
-from backend.models.admin import Admin, AdminCreate, AdminUpdate, AdminResponse
-from backend.models.notification import (
+from app.models.admin import Admin, AdminCreate, AdminUpdate, AdminResponse
+from app.models.notification import (
     Notification, NotificationCreate, NotificationUpdate, NotificationResponse
 )
-from backend.models.hotline import (
+from app.models.hotline import (
     EmergencyHotline, HotlineCreate, HotlineUpdate, HotlineResponse
 )
-from backend.models.safety import (
+from app.models.safety import (
     SafetyCategory,
     CategoryCreate,
     CategoryUpdate,
@@ -27,8 +27,8 @@ from backend.models.safety import (
     MeasureCreate,
     MeasureUpdate,
 )
-from backend.models.otp import OTPRequest, OTPVerifyRequest, OTPResponse
-from backend.models.prediction import (
+from app.models.otp import OTPRequest, OTPVerifyRequest, OTPResponse
+from app.models.prediction import (
     WeatherFeatures,
     PredictionRequest,
     PredictionResponse,

@@ -13,11 +13,11 @@ from sklearn.metrics import classification_report
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline as ImbPipeline
 
-from config import HAZARD_THRESHOLDS, MODEL_CONFIG, MODEL_PATH, METADATA_PATH
-from hazard_type_mapping import determine_hazard_type
-from notification_mapping import hazard_notification_templates
-from notification_util import NotificationService
-from logger_util import get_logger
+from app.scripts.config import HAZARD_THRESHOLDS, MODEL_CONFIG, MODEL_PATH, METADATA_PATH
+from app.ml.hazard_type_mapping import determine_hazard_type
+from app.ml.notification_mapping import hazard_notification_templates
+from app.services.notification_util import NotificationService
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

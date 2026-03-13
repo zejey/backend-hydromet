@@ -1,20 +1,11 @@
 """
 Hydromet Weather & Alert System - Main API
 Complete FastAPI application with ML predictions
-
-Author: zjayarcena
-Date: 2025-11-01
-Version: 2.0.0
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import sys
-import os
 from datetime import datetime
-
-# Add app to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from app.config import Config
 from app.database import init_connection_pool, close_connection_pool, test_connection

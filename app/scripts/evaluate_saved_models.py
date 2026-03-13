@@ -15,7 +15,7 @@ from sklearn.metrics import (
 )
 
 from train_multi_models import MultiModelTrainer
-from feature_engineering import get_feature_columns_for_hazard
+from app.ml.feature_engineering import get_feature_columns_for_hazard
 
 
 HAZARDS = ["heat_stress", "heavy_rain", "thunderstorm", "severe_storm"]

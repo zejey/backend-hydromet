@@ -13,6 +13,11 @@ class Config:
     # Database - Support both local and Railway PostgreSQL variables
     # Railway provides: PGDATABASE, PGUSER, PGPASSWORD, PGHOST, PGPORT
     # Local provides: DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
+
+    OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
+    OPENWEATHER_LAT = float(os.getenv("OPENWEATHER_LAT", "14.3597"))
+    OPENWEATHER_LON = float(os.getenv("OPENWEATHER_LON", "121.0583"))
+    OPENWEATHER_BASE_URL = os.getenv("OPENWEATHER_BASE_URL", "https://api.openweathermap.org/data/2.5")
     
     DB_NAME = os.getenv("PGDATABASE") or os.getenv("DB_NAME")
     DB_USER = os.getenv("PGUSER") or os.getenv("DB_USER", "postgres")

@@ -1,14 +1,13 @@
 """
 API endpoints for auto-predictor service
 """
-
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import logging
 import asyncio
 
-from app.services.auto_predictor import get_auto_predictor
+from app.services.enhanced_auto_predictor import get_enhanced_auto_predictor
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auto-predictor", tags=["Auto-Predictor"])
@@ -38,7 +37,7 @@ _last_summary = None
 async def get_status():
     """Get auto-predictor status"""
     global _is_running, _last_summary
-    
+
     return AutoPredictorStatus(
         running=_is_running,
         last_run=_last_summary.get('timestamp') if _last_summary else None,
@@ -50,24 +49,23 @@ async def get_status():
 async def start_auto_predictor(background_tasks: BackgroundTasks, interval_hours: int = 1):
     """Start continuous auto-predictor"""
     global _background_task, _is_running
-    
+
     if _is_running:
         raise HTTPException(status_code=400, detail="Auto-predictor already running")
-    
+
     try:
-        predictor = get_auto_predictor()
-        
-        # Start background task
+        predictor = get_enhanced_auto_predictor()
+
         _background_task = asyncio.create_task(predictor.run_continuous(interval_hours))
         _is_running = True
-        
+
         logger.info(f"✅ Auto-predictor started (interval: {interval_hours}h)")
-        
+
         return {
             "success": True,
             "message": f"Auto-predictor started (runs every {interval_hours} hour(s))"
         }
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to start auto-predictor: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -77,24 +75,24 @@ async def start_auto_predictor(background_tasks: BackgroundTasks, interval_hours
 async def stop_auto_predictor():
     """Stop continuous auto-predictor"""
     global _background_task, _is_running
-    
+
     if not _is_running:
         raise HTTPException(status_code=400, detail="Auto-predictor not running")
-    
+
     try:
         if _background_task:
             _background_task.cancel()
             _background_task = None
-        
+
         _is_running = False
-        
+
         logger.info("🛑 Auto-predictor stopped")
-        
+
         return {
             "success": True,
             "message": "Auto-predictor stopped"
         }
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to stop auto-predictor: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -104,22 +102,26 @@ async def stop_auto_predictor():
 async def run_once():
     """Run auto-predictor once (manual trigger)"""
     global _last_summary
-    
+
     try:
-        predictor = get_auto_predictor()
+        predictor = get_enhanced_auto_predictor()
         summary = predictor.run_once()
-        
+
         _last_summary = summary
-        
-        hazards_count = summary.get('hazards_detected', 0)
-        message = f"Prediction completed. {hazards_count} hazard(s) detected." if summary.get('success') else "Prediction failed"
-        
+
+        total_hazards = summary.get('predictions', {}).get('summary', {}).get('total_hazards_detected', 0)
+        message = (
+            f"Prediction completed. {total_hazards} hazard(s) detected."
+            if summary.get('success')
+            else "Prediction failed"
+        )
+
         return RunOnceResponse(
             success=summary.get('success', False),
             message=message,
             summary=summary
         )
-        
+
     except Exception as e:
         logger.error(f"❌ Manual prediction failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
