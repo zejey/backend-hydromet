@@ -56,3 +56,5 @@ htmlcov/
 tmp/
 temp/
 *.tmp
+
+*.csv
