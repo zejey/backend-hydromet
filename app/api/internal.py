@@ -94,6 +94,13 @@ async def forecast_run_all(
     _verify_secret(x_internal_secret)
     from app.services.forecast_runner import run_forecast
 
+    from app.config import Config
+    if not Config.FORECAST_RUNNER_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forecast runner is disabled (FORECAST_RUNNER_ENABLED=false)",
+        )
+
     try:
         result = run_forecast(test_user_id=None)
         logger.info(f"Forecast run (all users) complete: {result}")
