@@ -114,6 +114,93 @@ async def get_notifications(user_id: Optional[str] = Query(default=None)):
         raise HTTPException(status_code=500, detail=f"Error fetching notifications: {str(e)}")
 
 
+
+# ---------------------------------------------------------------------------
+# Per-user read state endpoints
+# ---------------------------------------------------------------------------
+
+@router.patch("/{notification_id}/read")
+async def mark_as_read(
+    notification_id: str,
+    user_id: str = Query(..., description="The user marking this notification as read"),
+):
+    """Mark a single notification as read for a specific user."""
+    try:
+        with get_db_cursor() as cur:
+            _ensure_reads_table(cur)
+
+            # Verify notification exists
+            cur.execute("SELECT id FROM notifications WHERE id = %s", (notification_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Notification not found")
+
+            # INSERT ... ON CONFLICT DO NOTHING — safe to call multiple times
+            cur.execute("""
+                INSERT INTO user_notification_reads (user_id, notification_id, read_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id, notification_id) DO NOTHING
+            """, (user_id, notification_id, datetime.utcnow()))
+
+            return {"success": True, "message": "Marked as read"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error marking as read: {str(e)}")
+
+
+@router.delete("/{notification_id}/read")
+async def mark_as_unread(
+    notification_id: str,
+    user_id: str = Query(..., description="The user unmarking this notification"),
+):
+    """Mark a single notification as unread for a specific user."""
+    try:
+        with get_db_cursor() as cur:
+            _ensure_reads_table(cur)
+
+            cur.execute("""
+                DELETE FROM user_notification_reads
+                WHERE user_id = %s AND notification_id = %s
+            """, (user_id, notification_id))
+
+            return {"success": True, "message": "Marked as unread"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error marking as unread: {str(e)}")
+
+
+@router.patch("/read/all")
+async def mark_all_as_read(
+    user_id: str = Query(..., description="The user marking all notifications as read"),
+):
+    """Mark all current notifications as read for a specific user."""
+    try:
+        with get_db_cursor() as cur:
+            _ensure_reads_table(cur)
+
+            # Fetch all notification IDs then bulk insert, skipping conflicts
+            cur.execute("SELECT id FROM notifications")
+            all_ids = [row["id"] for row in cur.fetchall()]
+
+            if not all_ids:
+                return {"success": True, "message": "No notifications to mark", "count": 0}
+
+            now = datetime.utcnow()
+            values = [(user_id, nid, now) for nid in all_ids]
+
+            cur.executemany("""
+                INSERT INTO user_notification_reads (user_id, notification_id, read_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id, notification_id) DO NOTHING
+            """, values)
+
+            return {"success": True, "message": "All marked as read", "count": len(all_ids)}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error marking all as read: {str(e)}")
+
+
 @router.get("/{notification_id}", response_model=NotificationWithReadState)
 async def get_notification(
     notification_id: str,
@@ -239,89 +326,3 @@ async def get_notifications_by_status(status_filter: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching notifications: {str(e)}")
-
-
-# ---------------------------------------------------------------------------
-# Per-user read state endpoints
-# ---------------------------------------------------------------------------
-
-@router.patch("/{notification_id}/read")
-async def mark_as_read(
-    notification_id: str,
-    user_id: str = Query(..., description="The user marking this notification as read"),
-):
-    """Mark a single notification as read for a specific user."""
-    try:
-        with get_db_cursor() as cur:
-            _ensure_reads_table(cur)
-
-            # Verify notification exists
-            cur.execute("SELECT id FROM notifications WHERE id = %s", (notification_id,))
-            if not cur.fetchone():
-                raise HTTPException(status_code=404, detail="Notification not found")
-
-            # INSERT ... ON CONFLICT DO NOTHING — safe to call multiple times
-            cur.execute("""
-                INSERT INTO user_notification_reads (user_id, notification_id, read_at)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (user_id, notification_id) DO NOTHING
-            """, (user_id, notification_id, datetime.utcnow()))
-
-            return {"success": True, "message": "Marked as read"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error marking as read: {str(e)}")
-
-
-@router.delete("/{notification_id}/read")
-async def mark_as_unread(
-    notification_id: str,
-    user_id: str = Query(..., description="The user unmarking this notification"),
-):
-    """Mark a single notification as unread for a specific user."""
-    try:
-        with get_db_cursor() as cur:
-            _ensure_reads_table(cur)
-
-            cur.execute("""
-                DELETE FROM user_notification_reads
-                WHERE user_id = %s AND notification_id = %s
-            """, (user_id, notification_id))
-
-            return {"success": True, "message": "Marked as unread"}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error marking as unread: {str(e)}")
-
-
-@router.patch("/read/all")
-async def mark_all_as_read(
-    user_id: str = Query(..., description="The user marking all notifications as read"),
-):
-    """Mark all current notifications as read for a specific user."""
-    try:
-        with get_db_cursor() as cur:
-            _ensure_reads_table(cur)
-
-            # Fetch all notification IDs then bulk insert, skipping conflicts
-            cur.execute("SELECT id FROM notifications")
-            all_ids = [row["id"] for row in cur.fetchall()]
-
-            if not all_ids:
-                return {"success": True, "message": "No notifications to mark", "count": 0}
-
-            now = datetime.utcnow()
-            values = [(user_id, nid, now) for nid in all_ids]
-
-            cur.executemany("""
-                INSERT INTO user_notification_reads (user_id, notification_id, read_at)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (user_id, notification_id) DO NOTHING
-            """, values)
-
-            return {"success": True, "message": "All marked as read", "count": len(all_ids)}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error marking all as read: {str(e)}")
