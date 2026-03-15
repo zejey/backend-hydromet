@@ -43,3 +43,7 @@ class NotificationResponse(BaseModel):
     success: bool
     message: str
     notification: Optional[Notification] = None
+
+class NotificationWithReadState(Notification):
+    """Notification with per-user read state — used by GET /api/notifications/"""
+    is_read: bool = False
