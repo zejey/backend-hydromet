@@ -8,7 +8,7 @@ import secrets, os
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 
-router = APIRouter(prefix="/app/auth", tags=["Auth"])
+router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 # Brevo configuration
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY")

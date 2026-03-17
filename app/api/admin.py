@@ -20,7 +20,7 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "SUPER_SECRET_KEY")  # Use a strong, r
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-router = APIRouter(prefix="/app/admins", tags=["Admin Management"])
+router = APIRouter(prefix="/api/admins", tags=["Admin Management"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admins/login")
 
 
