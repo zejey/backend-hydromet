@@ -1,5 +1,5 @@
 """
-System Logs service
+System Logs service (NO category)
 
 - Centralized creation of audit logs
 - List/search/filter/sort/paginate logs for admin UI
@@ -7,12 +7,12 @@ System Logs service
 
 from __future__ import annotations
 
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Any, Tuple, Dict
 from datetime import datetime
 
 from app.database import get_db_cursor, get_db_connection
 
-ALLOWED_SORT_FIELDS = {"created_at", "status", "category", "action", "user_label"}
+ALLOWED_SORT_FIELDS = {"created_at", "status", "action", "user_label"}
 ALLOWED_SORT_DIR = {"asc", "desc"}
 
 DEFAULT_PAGE_SIZE = 25
@@ -40,7 +40,6 @@ class SystemLogsService:
                       role VARCHAR(50) NULL,
 
                       action VARCHAR(120) NOT NULL,
-                      category VARCHAR(80) NOT NULL,
                       status VARCHAR(20) NOT NULL,
                       details TEXT NOT NULL,
 
@@ -61,19 +60,12 @@ class SystemLogsService:
                     ON system_logs(status)
                     """
                 )
-                cur.execute(
-                    """
-                    CREATE INDEX IF NOT EXISTS idx_system_logs_category
-                    ON system_logs(category)
-                    """
-                )
                 conn.commit()
 
     @staticmethod
     def create_log(
         *,
         action: str,
-        category: str,
         status: str,
         details: str,
         user: Optional[str] = None,
@@ -86,7 +78,7 @@ class SystemLogsService:
         Create a single system log row.
 
         Keep this call small and safe: never raise to break the main flow.
-        If logging fails, swallow error (but you may want to print/log server-side).
+        If logging fails, swallow error.
         """
         try:
             with get_db_connection() as conn:
@@ -94,9 +86,9 @@ class SystemLogsService:
                     cur.execute(
                         """
                         INSERT INTO system_logs
-                          (user_id, user_label, role, action, category, status, details, ip_address, user_agent)
+                          (user_id, user_label, role, action, status, details, ip_address, user_agent)
                         VALUES
-                          (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                          (%s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING
                           id,
                           created_at,
@@ -104,7 +96,6 @@ class SystemLogsService:
                           user_label AS "user",
                           role,
                           action,
-                          category,
                           status,
                           details,
                           ip_address,
@@ -115,7 +106,6 @@ class SystemLogsService:
                             user,
                             role,
                             action,
-                            category,
                             status,
                             details,
                             ip_address,
@@ -126,8 +116,6 @@ class SystemLogsService:
                     conn.commit()
                     return dict(row) if row else {}
         except Exception as e:
-            # Avoid breaking core flows due to logging errors
-            # You can replace this with proper server logger if you have one configured.
             print(f"[SystemLogsService] create_log failed: {e}")
             return {}
 
@@ -135,7 +123,6 @@ class SystemLogsService:
     def list_logs(
         *,
         q: Optional[str] = None,
-        category: Optional[str] = None,
         status: Optional[str] = None,
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
@@ -147,12 +134,13 @@ class SystemLogsService:
         """
         Returns (total_count, logs[])
         """
-        # Sanitize paging
         page = max(page, 1)
         page_size = max(1, min(int(page_size), MAX_PAGE_SIZE))
         offset = (page - 1) * page_size
 
-        # Validate sorting
+        if sort_by == "user":  # small convenience alias
+            sort_by = "user_label"
+
         if sort_by not in ALLOWED_SORT_FIELDS:
             sort_by = "created_at"
         sort_dir = (sort_dir or "desc").lower()
@@ -169,17 +157,12 @@ class SystemLogsService:
                   LOWER(COALESCE(user_label, '')) LIKE %s OR
                   LOWER(action) LIKE %s OR
                   LOWER(details) LIKE %s OR
-                  LOWER(category) LIKE %s OR
                   LOWER(status) LIKE %s
                 )
                 """
             )
             like = f"%{q.lower()}%"
-            params.extend([like, like, like, like, like])
-
-        if category and category != "All":
-            where.append("category = %s")
-            params.append(category)
+            params.extend([like, like, like, like])
 
         if status and status != "All":
             where.append("status = %s")
@@ -195,10 +178,6 @@ class SystemLogsService:
 
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
-        # If user requests sort_by=user (frontend naming), map to user_label
-        if sort_by == "user":
-            sort_by = "user_label"
-
         with get_db_cursor() as cur:
             cur.execute(f"SELECT COUNT(*) AS cnt FROM system_logs {where_sql}", params)
             total = int(cur.fetchone()["cnt"])
@@ -212,9 +191,10 @@ class SystemLogsService:
                   user_label AS "user",
                   role,
                   action,
-                  category,
                   status,
-                  details
+                  details,
+                  ip_address,
+                  user_agent
                 FROM system_logs
                 {where_sql}
                 ORDER BY {sort_by} {sort_dir}
@@ -223,5 +203,4 @@ class SystemLogsService:
                 params + [page_size, offset],
             )
             rows = cur.fetchall()
-            logs = [dict(r) for r in rows]
-            return total, logs
+            return total, [dict(r) for r in rows]

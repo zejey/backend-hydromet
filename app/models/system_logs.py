@@ -1,6 +1,4 @@
-"""
-System Logs Pydantic models
-"""
+"""System Logs Pydantic models"""
 
 from pydantic import BaseModel, Field
 from typing import Optional, Literal, List
@@ -11,13 +9,12 @@ LogStatus = Literal["Success", "Failed", "Warning"]
 
 class SystemLogBase(BaseModel):
     # Display fields required by frontend
-    user: Optional[str] = Field(None, max_length=120, description="Display name of actor")
+    user: Optional[str] = Field(
+        None, max_length=120, description="Display name of actor"
+    )
     action: str = Field(..., max_length=120)
     status: LogStatus
     details: str
-
-    # Useful filters/organization
-    category: str = Field(..., max_length=80)
 
     # Optional audit metadata
     user_id: Optional[int] = None
