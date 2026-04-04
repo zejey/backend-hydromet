@@ -29,7 +29,8 @@ from app.api import (
     user_emails_router,
     email_verification_router,
     barangays_router,
-    internal_router
+    internal_router,
+    system_logs_router,
 )
 
 # Validate configuration
@@ -86,6 +87,7 @@ app.include_router(user_emails_router)
 app.include_router(email_verification_router)
 app.include_router(barangays_router)
 app.include_router(internal_router)
+app.include_router(system_logs_router)
 
 
 @app.get("/")
