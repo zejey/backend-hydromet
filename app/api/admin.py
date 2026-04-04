@@ -15,6 +15,9 @@ from fastapi.security import OAuth2PasswordBearer
 from app.models.admin import Admin, AdminCreate, AdminUpdate, AdminResponse
 from app.database import get_db_cursor
 
+# ✅ NEW: system logs
+from app.services.system_logs_service import SystemLogsService
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.environ.get("SECRET_KEY", "SUPER_SECRET_KEY")  # Use a strong, real secret in prod!
 ALGORITHM = "HS256"
@@ -57,7 +60,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
                     break
                 except UnicodeDecodeError:
                     continue
-    return pwd_context.verify(plain_password, hashed_password)   
+    return pwd_context.verify(plain_password, hashed_password)
 
 def create_access_token(data: dict, expires_delta: int = None):
     to_encode = data.copy()
@@ -113,11 +116,20 @@ async def login(data: dict):
     password = data.get("password")
     if not login_input or not password:
         raise HTTPException(status_code=400, detail="Email/Username and password are required.")
-    
+
     # Add validation for password length BEFORE calling verify_password
     if len(password.encode('utf-8')) > 72:
+        # ✅ Log failed login attempt (don’t leak password details)
+        SystemLogsService.create_log(
+            action="Login Attempt Failed",
+            category="Authentication",
+            status="Failed",
+            details=f"Admin login failed for '{login_input}' (password too long).",
+            user=login_input,
+            role="admin"
+        )
         raise HTTPException(status_code=401, detail="Incorrect email or password.")
-    
+
     try:
         with get_db_cursor() as cur:
             cur.execute("""
@@ -126,19 +138,52 @@ async def login(data: dict):
                 WHERE email = %s OR username = %s
             """, (login_input, login_input))
             admin_row = cur.fetchone()
+
             if not admin_row or not verify_password(password, admin_row["password_hash"]):
+                # ✅ Log failed login attempt
+                SystemLogsService.create_log(
+                    action="Login Attempt Failed",
+                    category="Authentication",
+                    status="Failed",
+                    details=f"Admin login failed for '{login_input}'.",
+                    user=login_input,
+                    role="admin"
+                )
                 raise HTTPException(status_code=401, detail="Incorrect email or password.")
+
             # Build JWT
             access_token = create_access_token({
                 "sub": str(admin_row["id"]),
                 "email": admin_row["email"],
                 "role": admin_row["role"]
             })
+
+            # ✅ Log successful login
+            SystemLogsService.create_log(
+                action="User Login",
+                category="Authentication",
+                status="Success",
+                details=f"Admin '{admin_row['username']}' logged in successfully.",
+                user=admin_row["username"],
+                user_id=admin_row["id"],
+                role=admin_row["role"]
+            )
+
         return {"access_token": access_token, "token_type": "bearer"}
+
     except HTTPException:
         raise
     except Exception as e:
         print(f"UNEXPECTED LOGIN ERROR: {e}", flush=True)
+        # ✅ Log unexpected failure
+        SystemLogsService.create_log(
+            action="User Login",
+            category="Authentication",
+            status="Failed",
+            details=f"Unexpected login error for '{login_input}': {type(e).__name__}",
+            user=login_input,
+            role="admin"
+        )
         raise HTTPException(status_code=500, detail=f"Login error: {str(e)}")
 
 @router.post("/", response_model=Admin, status_code=status.HTTP_201_CREATED)
@@ -149,19 +194,36 @@ async def create_admin(admin_data: AdminCreate):
             # Check if admin with same email already exists
             cur.execute("SELECT id FROM admin WHERE email = %s", (admin_data.email,))
             if cur.fetchone():
+                SystemLogsService.create_log(
+                    action="User Account Created",
+                    category="User Management",
+                    status="Failed",
+                    details=f"Attempt to create admin failed: email already exists ({admin_data.email}).",
+                    user=admin_data.username,
+                    role=admin_data.role
+                )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Admin with this email already exists"
                 )
-           
+
             password = admin_data.password
             if len(password.encode('utf-8')) > 72:
+                SystemLogsService.create_log(
+                    action="User Account Created",
+                    category="User Management",
+                    status="Failed",
+                    details=f"Attempt to create admin failed: password too long for {admin_data.email}.",
+                    user=admin_data.username,
+                    role=admin_data.role
+                )
                 raise HTTPException(
                     status_code=400,
                     detail="Password is too long (over 72 bytes after UTF-8 encoding). Please use a shorter password."
                 )
 
             password_hash = hash_password(password)
+
             # Insert new admin
             cur.execute("""
                 INSERT INTO admin (email, role, username, uid, password_hash)
@@ -174,18 +236,37 @@ async def create_admin(admin_data: AdminCreate):
                 admin_data.uid,
                 password_hash
             ))
-            
+
             new_admin = cur.fetchone()
+
+            # ✅ Log success
+            SystemLogsService.create_log(
+                action="User Account Created",
+                category="User Management",
+                status="Success",
+                details=f"Created admin account: {new_admin['username']} ({new_admin['email']}).",
+                user=new_admin["username"],
+                user_id=new_admin["id"],
+                role=new_admin["role"]
+            )
+
             return Admin(**new_admin)
-            
+
     except HTTPException:
         raise
     except Exception as e:
+        SystemLogsService.create_log(
+            action="User Account Created",
+            category="User Management",
+            status="Failed",
+            details=f"Error creating admin ({admin_data.email}): {type(e).__name__}",
+            user=admin_data.username,
+            role=admin_data.role
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating admin: {str(e)}"
         )
-
 
 @router.get("/{admin_id}", response_model=Admin)
 async def get_admin(admin_id: int):
@@ -197,15 +278,15 @@ async def get_admin(admin_id: int):
                 (admin_id,)
             )
             admin_data = cur.fetchone()
-            
+
             if not admin_data:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Admin not found"
                 )
-            
+
             return Admin(**admin_data)
-            
+
     except HTTPException:
         raise
     except Exception as e:
@@ -213,7 +294,6 @@ async def get_admin(admin_id: int):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching admin: {str(e)}"
         )
-
 
 @router.put("/{admin_id}", response_model=Admin)
 async def update_admin(admin_id: int, admin_data: AdminCreate):
@@ -232,25 +312,50 @@ async def update_admin(admin_id: int, admin_data: AdminCreate):
                 admin_data.uid,
                 admin_id
             ))
-            
+
             updated_admin = cur.fetchone()
-            
+
             if not updated_admin:
+                SystemLogsService.create_log(
+                    action="User Account Updated",
+                    category="User Management",
+                    status="Failed",
+                    details=f"Admin update failed: admin_id={admin_id} not found.",
+                    user=admin_data.username,
+                    role=admin_data.role
+                )
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Admin not found"
                 )
-            
+
+            SystemLogsService.create_log(
+                action="User Account Updated",
+                category="User Management",
+                status="Success",
+                details=f"Updated admin account: id={admin_id}, username={updated_admin['username']}.",
+                user=updated_admin["username"],
+                user_id=updated_admin["id"],
+                role=updated_admin["role"]
+            )
+
             return Admin(**updated_admin)
-            
+
     except HTTPException:
         raise
     except Exception as e:
+        SystemLogsService.create_log(
+            action="User Account Updated",
+            category="User Management",
+            status="Failed",
+            details=f"Error updating admin id={admin_id}: {type(e).__name__}",
+            user=admin_data.username,
+            role=admin_data.role
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating admin: {str(e)}"
         )
-
 
 @router.delete("/{admin_id}")
 async def delete_admin(admin_id: int):
@@ -259,21 +364,46 @@ async def delete_admin(admin_id: int):
         with get_db_cursor() as cur:
             cur.execute("DELETE FROM admin WHERE id = %s RETURNING id", (admin_id,))
             deleted = cur.fetchone()
-            
+
             if not deleted:
+                SystemLogsService.create_log(
+                    action="User Account Deleted",
+                    category="User Management",
+                    status="Failed",
+                    details=f"Admin delete failed: admin_id={admin_id} not found.",
+                    user="System",
+                    role="admin"
+                )
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Admin not found"
                 )
-            
+
+            SystemLogsService.create_log(
+                action="User Account Deleted",
+                category="User Management",
+                status="Success",
+                details=f"Deleted admin account: id={admin_id}.",
+                user="System",
+                role="admin"
+            )
+
             return {
                 "success": True,
                 "message": "Admin deleted successfully"
             }
-            
+
     except HTTPException:
         raise
     except Exception as e:
+        SystemLogsService.create_log(
+            action="User Account Deleted",
+            category="User Management",
+            status="Failed",
+            details=f"Error deleting admin id={admin_id}: {type(e).__name__}",
+            user="System",
+            role="admin"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting admin: {str(e)}"

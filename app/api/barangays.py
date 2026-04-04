@@ -5,6 +5,7 @@ from datetime import datetime
 import uuid
 
 from app.database import get_db_cursor
+from app.services.system_logs_service import SystemLogsService
 
 router = APIRouter(prefix="/api/barangays", tags=["Barangays"])
 
@@ -53,6 +54,14 @@ async def list_barangays(active_only: bool = True):
 async def create_barangay(payload: BarangayCreate):
     name = payload.name.strip()
     if not name:
+        SystemLogsService.create_log(
+            action="Barangay Created",
+            category="System Configuration",
+            status="Failed",
+            details="Barangay create failed: name is required.",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(status_code=400, detail="Barangay name is required")
 
     try:
@@ -65,17 +74,42 @@ async def create_barangay(payload: BarangayCreate):
                 RETURNING id, name, is_active, created_at, updated_at
             """, (barangay_id, name, now, now))
             row = cur.fetchone()
-            return Barangay(**dict(row))
+
+        SystemLogsService.create_log(
+            action="Barangay Created",
+            category="System Configuration",
+            status="Success",
+            details=f"Created barangay '{name}' (id={barangay_id}).",
+            user="System Admin",
+            role="admin"
+        )
+
+        return Barangay(**dict(row))
     except Exception as e:
-        # likely unique violation
+        SystemLogsService.create_log(
+            action="Barangay Created",
+            category="System Configuration",
+            status="Failed",
+            details=f"Failed to create barangay '{name}': {type(e).__name__}",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Could not create barangay: {str(e)}"
         )
-
+        
 @router.put("/{barangay_id}", response_model=Barangay)
 async def update_barangay(barangay_id: str, payload: BarangayUpdate):
     if payload.name is None and payload.is_active is None:
+        SystemLogsService.create_log(
+            action="Barangay Updated",
+            category="System Configuration",
+            status="Failed",
+            details=f"Barangay update failed: no fields provided (id={barangay_id}).",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(status_code=400, detail="No fields to update")
 
     try:
@@ -87,6 +121,14 @@ async def update_barangay(barangay_id: str, payload: BarangayUpdate):
             """, (barangay_id,))
             existing = cur.fetchone()
             if not existing:
+                SystemLogsService.create_log(
+                    action="Barangay Updated",
+                    category="System Configuration",
+                    status="Failed",
+                    details=f"Barangay update failed: not found (id={barangay_id}).",
+                    user="System Admin",
+                    role="admin"
+                )
                 raise HTTPException(status_code=404, detail="Barangay not found")
 
             new_name = payload.name.strip() if payload.name is not None else existing["name"]
@@ -103,10 +145,28 @@ async def update_barangay(barangay_id: str, payload: BarangayUpdate):
             """, (new_name, new_is_active, now, barangay_id))
 
             row = cur.fetchone()
-            return Barangay(**dict(row))
+
+        SystemLogsService.create_log(
+            action="Barangay Updated",
+            category="System Configuration",
+            status="Success",
+            details=f"Updated barangay id={barangay_id}: name='{new_name}', is_active={new_is_active}.",
+            user="System Admin",
+            role="admin"
+        )
+
+        return Barangay(**dict(row))
     except HTTPException:
         raise
     except Exception as e:
+        SystemLogsService.create_log(
+            action="Barangay Updated",
+            category="System Configuration",
+            status="Failed",
+            details=f"Failed to update barangay id={barangay_id}: {type(e).__name__}",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Could not update barangay: {str(e)}"

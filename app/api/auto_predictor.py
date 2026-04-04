@@ -8,6 +8,7 @@ import logging
 import asyncio
 
 from app.services.enhanced_auto_predictor import get_enhanced_auto_predictor
+from app.services.system_logs_service import SystemLogsService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auto-predictor", tags=["Auto-Predictor"])
@@ -37,13 +38,11 @@ _last_summary = None
 async def get_status():
     """Get auto-predictor status"""
     global _is_running, _last_summary
-
     return AutoPredictorStatus(
         running=_is_running,
         last_run=_last_summary.get('timestamp') if _last_summary else None,
         interval_hours=1
     )
-
 
 @router.post("/start")
 async def start_auto_predictor(background_tasks: BackgroundTasks, interval_hours: int = 1):
@@ -51,6 +50,14 @@ async def start_auto_predictor(background_tasks: BackgroundTasks, interval_hours
     global _background_task, _is_running
 
     if _is_running:
+        SystemLogsService.create_log(
+            action="Auto Predictor Started",
+            category="System Maintenance",
+            status="Warning",
+            details="Start requested but auto-predictor was already running.",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(status_code=400, detail="Auto-predictor already running")
 
     try:
@@ -61,6 +68,15 @@ async def start_auto_predictor(background_tasks: BackgroundTasks, interval_hours
 
         logger.info(f"✅ Auto-predictor started (interval: {interval_hours}h)")
 
+        SystemLogsService.create_log(
+            action="Auto Predictor Started",
+            category="System Maintenance",
+            status="Success",
+            details=f"Auto-predictor started (interval_hours={interval_hours}).",
+            user="System Admin",
+            role="admin"
+        )
+
         return {
             "success": True,
             "message": f"Auto-predictor started (runs every {interval_hours} hour(s))"
@@ -68,8 +84,15 @@ async def start_auto_predictor(background_tasks: BackgroundTasks, interval_hours
 
     except Exception as e:
         logger.error(f"❌ Failed to start auto-predictor: {e}")
+        SystemLogsService.create_log(
+            action="Auto Predictor Started",
+            category="System Maintenance",
+            status="Failed",
+            details=f"Failed to start auto-predictor: {type(e).__name__}",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/stop")
 async def stop_auto_predictor():
@@ -77,6 +100,14 @@ async def stop_auto_predictor():
     global _background_task, _is_running
 
     if not _is_running:
+        SystemLogsService.create_log(
+            action="Auto Predictor Stopped",
+            category="System Maintenance",
+            status="Warning",
+            details="Stop requested but auto-predictor was not running.",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(status_code=400, detail="Auto-predictor not running")
 
     try:
@@ -88,6 +119,15 @@ async def stop_auto_predictor():
 
         logger.info("🛑 Auto-predictor stopped")
 
+        SystemLogsService.create_log(
+            action="Auto Predictor Stopped",
+            category="System Maintenance",
+            status="Success",
+            details="Auto-predictor stopped.",
+            user="System Admin",
+            role="admin"
+        )
+
         return {
             "success": True,
             "message": "Auto-predictor stopped"
@@ -95,8 +135,15 @@ async def stop_auto_predictor():
 
     except Exception as e:
         logger.error(f"❌ Failed to stop auto-predictor: {e}")
+        SystemLogsService.create_log(
+            action="Auto Predictor Stopped",
+            category="System Maintenance",
+            status="Failed",
+            details=f"Failed to stop auto-predictor: {type(e).__name__}",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/run-once", response_model=RunOnceResponse)
 async def run_once():
@@ -116,6 +163,15 @@ async def run_once():
             else "Prediction failed"
         )
 
+        SystemLogsService.create_log(
+            action="Auto Predictor Run Once",
+            category="System Maintenance",
+            status="Success" if summary.get("success") else "Failed",
+            details=message,
+            user="System Admin",
+            role="admin"
+        )
+
         return RunOnceResponse(
             success=summary.get('success', False),
             message=message,
@@ -124,4 +180,12 @@ async def run_once():
 
     except Exception as e:
         logger.error(f"❌ Manual prediction failed: {e}")
+        SystemLogsService.create_log(
+            action="Auto Predictor Run Once",
+            category="System Maintenance",
+            status="Failed",
+            details=f"Manual run failed: {type(e).__name__}",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(status_code=500, detail=str(e))

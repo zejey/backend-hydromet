@@ -18,6 +18,8 @@ import uuid
 from app.models.notification import Notification, NotificationCreate, NotificationUpdate, NotificationWithReadState
 from app.database import get_db_cursor
 
+from app.services.system_logs_service import SystemLogsService
+
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 
 
@@ -62,6 +64,17 @@ async def create_notification(notification_data: NotificationCreate):
                 notification_data.status,
                 now,
             ))
+
+            created = cur.fetchone()
+
+            SystemLogsService.create_log(
+                        action="Notification Posted",
+                        category="Content Management",
+                        status="Success",
+                        details=f"Notification posted: title='{notification_data.title}', type='{notification_data.type}', sent_to='{notification_data.sent_to}'.",
+                        user="System Admin",
+                        role="admin"
+                    )
 
             return Notification(**cur.fetchone())
 
@@ -278,11 +291,28 @@ async def update_notification(notification_id: str, notification_data: Notificat
             if not row:
                 raise HTTPException(status_code=404, detail="Notification not found")
 
+            SystemLogsService.create_log(
+                action="Notification Updated",
+                category="Content Management",
+                status="Success",
+                details=f"Notification updated: id={notification_id}.",
+                user="System Admin",
+                role="admin"
+            )
+
             return Notification(**row)
 
     except HTTPException:
         raise
     except Exception as e:
+        SystemLogsService.create_log(
+            action="Notification Updated",
+            category="Content Management",
+            status="Failed",
+            details=f"Failed to update notification id={notification_id}: {type(e).__name__}",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(status_code=500, detail=f"Error updating notification: {str(e)}")
 
 
@@ -291,38 +321,38 @@ async def delete_notification(notification_id: str):
     """Permanently delete a notification (admin — removes for all users)."""
     try:
         with get_db_cursor() as cur:
-            # Clean up read records first to avoid orphaned rows
             cur.execute(
                 "DELETE FROM user_notification_reads WHERE notification_id = %s",
                 (notification_id,),
             )
             cur.execute(
-                "DELETE FROM notifications WHERE id = %s RETURNING id",
+                "DELETE FROM notifications WHERE id = %s RETURNING id, title",
                 (notification_id,),
             )
-            if not cur.fetchone():
+            deleted = cur.fetchone()
+            if not deleted:
                 raise HTTPException(status_code=404, detail="Notification not found")
 
-            return {"success": True, "message": "Notification deleted successfully"}
+        SystemLogsService.create_log(
+            action="Notification Deleted",
+            category="Content Management",
+            status="Success",
+            details=f"Notification deleted: id={notification_id}.",
+            user="System Admin",
+            role="admin"
+        )
+
+        return {"success": True, "message": "Notification deleted successfully"}
 
     except HTTPException:
         raise
     except Exception as e:
+        SystemLogsService.create_log(
+            action="Notification Deleted",
+            category="Content Management",
+            status="Failed",
+            details=f"Failed to delete notification id={notification_id}: {type(e).__name__}",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(status_code=500, detail=f"Error deleting notification: {str(e)}")
-
-
-@router.get("/status/{status_filter}", response_model=List[Notification])
-async def get_notifications_by_status(status_filter: str):
-    """Get notifications by status (e.g. sent, pending, failed)."""
-    try:
-        with get_db_cursor() as cur:
-            cur.execute("""
-                SELECT id, title, message, type, sent_to, status, date_time
-                FROM notifications
-                WHERE status = %s
-                ORDER BY date_time DESC
-            """, (status_filter,))
-            return [Notification(**row) for row in cur.fetchall()]
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching notifications: {str(e)}")

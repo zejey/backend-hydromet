@@ -4,6 +4,9 @@ from app.database import get_db_cursor
 from datetime import datetime, timedelta, timezone
 import secrets, os
 
+# ✅ NEW: system logs
+from app.services.system_logs_service import SystemLogsService
+
 # --- Brevo imports ---
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
@@ -77,38 +80,54 @@ async def forgot_password(req: ForgotPasswordRequest, background_tasks: Backgrou
     created_at = datetime.now(timezone.utc)
     expires_at = created_at + timedelta(hours=RESET_TOKEN_EXPIRY_HOURS)
 
-    with get_db_cursor() as cur:
-        # Check if admin exists
-        cur.execute("SELECT 1 FROM admin WHERE email = %s", (email,))
-        user_exists = bool(cur.fetchone())
+    try:
+        with get_db_cursor() as cur:
+            # Check if admin exists
+            cur.execute("SELECT 1 FROM admin WHERE email = %s", (email,))
+            user_exists = bool(cur.fetchone())
 
-        # Only create token and send email if user exists
-        if user_exists:
-            # Delete any old unused tokens for this email
-            cur.execute("DELETE FROM auth_password_resets WHERE email = %s AND used = false", (email,))
+            # Only create token and send email if user exists
+            if user_exists:
+                cur.execute("DELETE FROM auth_password_resets WHERE email = %s AND used = false", (email,))
 
-            # Insert new token
-            cur.execute(
-                """
-                INSERT INTO auth_password_resets (email, token, created_at, expires_at, used)
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING id;
-                """,
-                (email, token, created_at, expires_at, False),
-            )
+                cur.execute(
+                    """
+                    INSERT INTO auth_password_resets (email, token, created_at, expires_at, used)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id;
+                    """,
+                    (email, token, created_at, expires_at, False),
+                )
 
-            # Build frontend link with hash routing
-            base = FRONTEND_URL.rstrip("/")
-            reset_link = f"{base}/#/reset-password?token={token}"
+                base = FRONTEND_URL.rstrip("/")
+                reset_link = f"{base}/#/reset-password?token={token}"
+                background_tasks.add_task(send_reset_email, email, reset_link)
 
-            # Send email in background
-            background_tasks.add_task(send_reset_email, email, reset_link)
+        # ✅ Log request (do not reveal whether the email exists)
+        SystemLogsService.create_log(
+            action="Password Reset Requested",
+            category="Authentication",
+            status="Success",
+            details="Password reset request received (email not disclosed).",
+            user=email,
+            role="admin"
+        )
 
-    # Always return the same message (for security - don't reveal if email exists)
-    return GenericResponse(
-        success=True, 
-        message="If this email exists, a reset link has been sent."
-    )
+        return GenericResponse(
+            success=True,
+            message="If this email exists, a reset link has been sent."
+        )
+
+    except Exception as e:
+        SystemLogsService.create_log(
+            action="Password Reset Requested",
+            category="Authentication",
+            status="Failed",
+            details=f"Password reset request error: {type(e).__name__}",
+            user=email,
+            role="admin"
+        )
+        raise
 
 @router.post("/reset-password", response_model=GenericResponse)
 async def reset_password(req: ResetPasswordRequest):
@@ -116,45 +135,107 @@ async def reset_password(req: ResetPasswordRequest):
     new_password = req.password
 
     if not token or not new_password or len(new_password) < 8:
+        SystemLogsService.create_log(
+            action="Password Reset Completed",
+            category="Authentication",
+            status="Failed",
+            details="Reset-password failed validation (invalid token or password length).",
+            user="System",
+            role="admin"
+        )
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail="Invalid token or password must be at least 8 characters."
         )
 
     from passlib.hash import bcrypt
     password_hash = bcrypt.hash(new_password)
 
-    with get_db_cursor() as cur:
-        # Look up the token
-        cur.execute("SELECT * FROM auth_password_resets WHERE token = %s", (token,))
-        record = cur.fetchone()
-        
-        if not record:
-            raise HTTPException(status_code=400, detail="Invalid token.")
-        if record["used"]:
-            raise HTTPException(status_code=400, detail="Token already used.")
-        if record["expires_at"] < datetime.now(timezone.utc):
-            raise HTTPException(status_code=400, detail="Token expired.")
-        
-        email = record["email"]
+    try:
+        with get_db_cursor() as cur:
+            cur.execute("SELECT * FROM auth_password_resets WHERE token = %s", (token,))
+            record = cur.fetchone()
 
-        # Update admin password
-        cur.execute(
-            "UPDATE admin SET password_hash = %s WHERE email = %s RETURNING id;",
-            (password_hash, email),
+            if not record:
+                SystemLogsService.create_log(
+                    action="Password Reset Completed",
+                    category="Authentication",
+                    status="Failed",
+                    details="Reset-password failed: invalid token.",
+                    user="System",
+                    role="admin"
+                )
+                raise HTTPException(status_code=400, detail="Invalid token.")
+            if record["used"]:
+                SystemLogsService.create_log(
+                    action="Password Reset Completed",
+                    category="Authentication",
+                    status="Failed",
+                    details="Reset-password failed: token already used.",
+                    user="System",
+                    role="admin"
+                )
+                raise HTTPException(status_code=400, detail="Token already used.")
+            if record["expires_at"] < datetime.now(timezone.utc):
+                SystemLogsService.create_log(
+                    action="Password Reset Completed",
+                    category="Authentication",
+                    status="Failed",
+                    details="Reset-password failed: token expired.",
+                    user="System",
+                    role="admin"
+                )
+                raise HTTPException(status_code=400, detail="Token expired.")
+
+            email = record["email"]
+
+            cur.execute(
+                "UPDATE admin SET password_hash = %s WHERE email = %s RETURNING id, username, role;",
+                (password_hash, email),
+            )
+            updated = cur.fetchone()
+
+            if not updated:
+                SystemLogsService.create_log(
+                    action="Password Reset Completed",
+                    category="Authentication",
+                    status="Failed",
+                    details="Reset-password failed: account not found.",
+                    user=email,
+                    role="admin"
+                )
+                raise HTTPException(status_code=400, detail="Account not found.")
+
+            cur.execute(
+                "UPDATE auth_password_resets SET used = true, used_at = %s WHERE token = %s",
+                (datetime.now(timezone.utc), token),
+            )
+
+        # ✅ Log success
+        SystemLogsService.create_log(
+            action="Password Reset Completed",
+            category="Authentication",
+            status="Success",
+            details="Admin password reset completed successfully.",
+            user=updated["username"],
+            user_id=updated["id"],
+            role=updated["role"]
         )
-        updated = cur.fetchone()
-        
-        if not updated:
-            raise HTTPException(status_code=400, detail="Account not found.")
 
-        # Mark token as used
-        cur.execute(
-            "UPDATE auth_password_resets SET used = true, used_at = %s WHERE token = %s",
-            (datetime.now(timezone.utc), token),
+        return GenericResponse(
+            success=True,
+            message="Password has been reset. You may now log in."
         )
 
-    return GenericResponse(
-        success=True, 
-        message="Password has been reset. You may now log in."
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        SystemLogsService.create_log(
+            action="Password Reset Completed",
+            category="Authentication",
+            status="Failed",
+            details=f"Reset-password unexpected error: {type(e).__name__}",
+            user="System",
+            role="admin"
+        )
+        raise

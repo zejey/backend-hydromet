@@ -16,6 +16,7 @@ router = APIRouter(
     redirect_slashes=False  # ✅ Fix the 307 redirect issue
 )
 
+from app.services.system_logs_service import SystemLogsService
 
 @router.post("/", response_model=EmergencyHotline, status_code=status.HTTP_201_CREATED)
 async def create_hotline(hotline_data: HotlineCreate):
@@ -24,7 +25,7 @@ async def create_hotline(hotline_data: HotlineCreate):
         with get_db_cursor() as cur:
             hotline_id = str(uuid.uuid4())
             now = datetime.utcnow()
-            
+
             cur.execute("""
                 INSERT INTO emergency_hotlines (
                     id, service_name, phone_number, category, icon_color, 
@@ -45,18 +46,34 @@ async def create_hotline(hotline_data: HotlineCreate):
                 now,
                 now
             ))
-            
+
             new_hotline = cur.fetchone()
-            # ✅ Convert to dict immediately while cursor is active
             hotline_dict = dict(new_hotline) if new_hotline else None
-            return EmergencyHotline(**hotline_dict)
-            
+
+        SystemLogsService.create_log(
+            action="Emergency Hotline Created",
+            category="System Configuration",
+            status="Success",
+            details=f"Created hotline '{hotline_data.service_name}' ({hotline_data.phone_number}) in category '{hotline_data.category}'.",
+            user="System Admin",
+            role="admin"
+        )
+
+        return EmergencyHotline(**hotline_dict)
+
     except Exception as e:
+        SystemLogsService.create_log(
+            action="Emergency Hotline Created",
+            category="System Configuration",
+            status="Failed",
+            details=f"Failed to create hotline '{hotline_data.service_name}': {type(e).__name__}",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating hotline: {str(e)}"
         )
-
 
 @router.get("/", response_model=List[EmergencyHotline])
 async def get_hotlines(active_only: bool = True):
@@ -152,48 +169,41 @@ async def update_hotline(hotline_id: str, hotline_data: HotlineUpdate):
     """Update hotline"""
     try:
         with get_db_cursor() as cur:
-            # Build dynamic update query
             update_fields = []
             values = []
-            
+
             if hotline_data.service_name is not None:
                 update_fields.append("service_name = %s")
                 values.append(hotline_data.service_name)
-            
             if hotline_data.phone_number is not None:
                 update_fields.append("phone_number = %s")
                 values.append(hotline_data.phone_number)
-            
             if hotline_data.category is not None:
                 update_fields.append("category = %s")
                 values.append(hotline_data.category)
-            
             if hotline_data.icon_color is not None:
                 update_fields.append("icon_color = %s")
                 values.append(hotline_data.icon_color)
-            
             if hotline_data.icon_type is not None:
                 update_fields.append("icon_type = %s")
                 values.append(hotline_data.icon_type)
-            
             if hotline_data.is_active is not None:
                 update_fields.append("is_active = %s")
                 values.append(hotline_data.is_active)
-            
             if hotline_data.priority is not None:
                 update_fields.append("priority = %s")
                 values.append(hotline_data.priority)
-            
+
             if not update_fields:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="No fields to update"
                 )
-            
+
             update_fields.append("updated_at = %s")
             values.append(datetime.utcnow())
             values.append(hotline_id)
-            
+
             cur.execute(f"""
                 UPDATE emergency_hotlines
                 SET {', '.join(update_fields)}
@@ -201,27 +211,51 @@ async def update_hotline(hotline_id: str, hotline_data: HotlineUpdate):
                 RETURNING id, service_name, phone_number, category, icon_color,
                           icon_type, is_active, priority, created_at, updated_at
             """, values)
-            
+
             updated_hotline = cur.fetchone()
-            
+
             if not updated_hotline:
+                SystemLogsService.create_log(
+                    action="Emergency Hotline Updated",
+                    category="System Configuration",
+                    status="Failed",
+                    details=f"Hotline update failed: hotline_id={hotline_id} not found.",
+                    user="System Admin",
+                    role="admin"
+                )
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Hotline not found"
                 )
-            
-            # ✅ Convert to dict while cursor is active
+
             hotline_dict = dict(updated_hotline)
-            return EmergencyHotline(**hotline_dict)
-            
+
+        SystemLogsService.create_log(
+            action="Emergency Hotline Updated",
+            category="System Configuration",
+            status="Success",
+            details=f"Updated hotline id={hotline_id}.",
+            user="System Admin",
+            role="admin"
+        )
+
+        return EmergencyHotline(**hotline_dict)
+
     except HTTPException:
         raise
     except Exception as e:
+        SystemLogsService.create_log(
+            action="Emergency Hotline Updated",
+            category="System Configuration",
+            status="Failed",
+            details=f"Failed to update hotline id={hotline_id}: {type(e).__name__}",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating hotline: {str(e)}"
         )
-
 
 @router.delete("/{hotline_id}")
 async def delete_hotline(hotline_id: str):
@@ -230,21 +264,46 @@ async def delete_hotline(hotline_id: str):
         with get_db_cursor() as cur:
             cur.execute("DELETE FROM emergency_hotlines WHERE id = %s RETURNING id", (hotline_id,))
             deleted = cur.fetchone()
-            
+
             if not deleted:
+                SystemLogsService.create_log(
+                    action="Emergency Hotline Deleted",
+                    category="System Configuration",
+                    status="Failed",
+                    details=f"Hotline delete failed: hotline_id={hotline_id} not found.",
+                    user="System Admin",
+                    role="admin"
+                )
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Hotline not found"
                 )
-            
-            return {
-                "success": True,
-                "message": "Hotline deleted successfully"
-            }
-            
+
+        SystemLogsService.create_log(
+            action="Emergency Hotline Deleted",
+            category="System Configuration",
+            status="Success",
+            details=f"Deleted hotline id={hotline_id}.",
+            user="System Admin",
+            role="admin"
+        )
+
+        return {
+            "success": True,
+            "message": "Hotline deleted successfully"
+        }
+
     except HTTPException:
         raise
     except Exception as e:
+        SystemLogsService.create_log(
+            action="Emergency Hotline Deleted",
+            category="System Configuration",
+            status="Failed",
+            details=f"Failed to delete hotline id={hotline_id}: {type(e).__name__}",
+            user="System Admin",
+            role="admin"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting hotline: {str(e)}"
