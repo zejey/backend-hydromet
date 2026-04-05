@@ -80,15 +80,6 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
             if cur.fetchone():
                 SystemLogsService.create_log(
                     action="Admin Invite Sent",
-                    category="User Management",
-                    status="Failed",
-                    details=f"Invite failed: admin already exists for {invite.email}.",
-                    user=invite.invited_by or "System",
-                    role="admin"
-                )
-                raise HTTPException(status_code=409, detail="Admin with this email already exists.")
-
-            # DELETE old unused invites for this email
             cur.execute(
                 "DELETE FROM admin_invites WHERE email = %s AND used = false",
                 (invite.email,)
@@ -111,7 +102,6 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
         # ✅ Log success (invite created + queued email)
         SystemLogsService.create_log(
             action="Admin Invite Sent",
-            category="User Management",
             status="Success",
             details=f"Admin invite sent to {invite.email} (role={invite.role}).",
             user=invite.invited_by or "System",
@@ -129,7 +119,6 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
     except Exception as e:
         SystemLogsService.create_log(
             action="Admin Invite Sent",
-            category="User Management",
             status="Failed",
             details=f"Unexpected error sending invite to {invite.email}: {type(e).__name__}",
             user=invite.invited_by or "System",
@@ -147,7 +136,6 @@ async def set_admin_password(req: SetPasswordRequest):
             if not invite:
                 SystemLogsService.create_log(
                     action="Admin Account Created (Invite)",
-                    category="User Management",
                     status="Failed",
                     details="Set-password failed: invalid invite token.",
                     user="System",
@@ -157,7 +145,6 @@ async def set_admin_password(req: SetPasswordRequest):
             if invite['used']:
                 SystemLogsService.create_log(
                     action="Admin Account Created (Invite)",
-                    category="User Management",
                     status="Failed",
                     details=f"Set-password failed: invite already used for {invite['email']}.",
                     user="System",
@@ -167,7 +154,6 @@ async def set_admin_password(req: SetPasswordRequest):
             if invite['expires_at'] < datetime.now(timezone.utc):
                 SystemLogsService.create_log(
                     action="Admin Account Created (Invite)",
-                    category="User Management",
                     status="Failed",
                     details=f"Set-password failed: invite expired for {invite['email']}.",
                     user="System",
@@ -198,7 +184,6 @@ async def set_admin_password(req: SetPasswordRequest):
         # ✅ Log success
         SystemLogsService.create_log(
             action="Admin Account Created (Invite)",
-            category="User Management",
             status="Success",
             details=f"Admin account created via invite: {created_admin['username']} ({created_admin['email']}).",
             user=created_admin["username"],
@@ -214,10 +199,6 @@ async def set_admin_password(req: SetPasswordRequest):
 
     except HTTPException:
         raise
-    except Exception as e:
-        SystemLogsService.create_log(
-            action="Admin Account Created (Invite)",
-            category="User Management",
             status="Failed",
             details=f"Unexpected error during set-password: {type(e).__name__}",
             user="System",

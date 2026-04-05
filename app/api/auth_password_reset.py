@@ -106,7 +106,6 @@ async def forgot_password(req: ForgotPasswordRequest, background_tasks: Backgrou
         # ✅ Log request (do not reveal whether the email exists)
         SystemLogsService.create_log(
             action="Password Reset Requested",
-            category="Authentication",
             status="Success",
             details="Password reset request received (email not disclosed).",
             user=email,
@@ -121,7 +120,6 @@ async def forgot_password(req: ForgotPasswordRequest, background_tasks: Backgrou
     except Exception as e:
         SystemLogsService.create_log(
             action="Password Reset Requested",
-            category="Authentication",
             status="Failed",
             details=f"Password reset request error: {type(e).__name__}",
             user=email,
@@ -137,7 +135,6 @@ async def reset_password(req: ResetPasswordRequest):
     if not token or not new_password or len(new_password) < 8:
         SystemLogsService.create_log(
             action="Password Reset Completed",
-            category="Authentication",
             status="Failed",
             details="Reset-password failed validation (invalid token or password length).",
             user="System",
@@ -159,7 +156,6 @@ async def reset_password(req: ResetPasswordRequest):
             if not record:
                 SystemLogsService.create_log(
                     action="Password Reset Completed",
-                    category="Authentication",
                     status="Failed",
                     details="Reset-password failed: invalid token.",
                     user="System",
@@ -169,7 +165,6 @@ async def reset_password(req: ResetPasswordRequest):
             if record["used"]:
                 SystemLogsService.create_log(
                     action="Password Reset Completed",
-                    category="Authentication",
                     status="Failed",
                     details="Reset-password failed: token already used.",
                     user="System",
@@ -179,7 +174,6 @@ async def reset_password(req: ResetPasswordRequest):
             if record["expires_at"] < datetime.now(timezone.utc):
                 SystemLogsService.create_log(
                     action="Password Reset Completed",
-                    category="Authentication",
                     status="Failed",
                     details="Reset-password failed: token expired.",
                     user="System",
@@ -198,7 +192,6 @@ async def reset_password(req: ResetPasswordRequest):
             if not updated:
                 SystemLogsService.create_log(
                     action="Password Reset Completed",
-                    category="Authentication",
                     status="Failed",
                     details="Reset-password failed: account not found.",
                     user=email,
@@ -214,7 +207,6 @@ async def reset_password(req: ResetPasswordRequest):
         # ✅ Log success
         SystemLogsService.create_log(
             action="Password Reset Completed",
-            category="Authentication",
             status="Success",
             details="Admin password reset completed successfully.",
             user=updated["username"],
@@ -232,7 +224,6 @@ async def reset_password(req: ResetPasswordRequest):
     except Exception as e:
         SystemLogsService.create_log(
             action="Password Reset Completed",
-            category="Authentication",
             status="Failed",
             details=f"Reset-password unexpected error: {type(e).__name__}",
             user="System",

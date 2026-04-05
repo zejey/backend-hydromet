@@ -69,7 +69,6 @@ async def create_measure(measure_data: MeasureCreate):
 
         SystemLogsService.create_log(
             action="Preventive Measure Created",
-            category="Content Management",
             status="Success",
             details=f"Created preventive measure id={new_measure['id']} (category_id={new_measure['category_id']}, number={new_measure['number']}).",
             user="System Admin",
@@ -81,7 +80,6 @@ async def create_measure(measure_data: MeasureCreate):
     except Exception as e:
         SystemLogsService.create_log(
             action="Preventive Measure Created",
-            category="Content Management",
             status="Failed",
             details=f"Failed to create preventive measure: {type(e).__name__}",
             user="System Admin",
@@ -113,7 +111,6 @@ async def update_measure(measure_id: int, measure_data: MeasureUpdate):
             if not update_fields:
                 SystemLogsService.create_log(
                     action="Preventive Measure Updated",
-                    category="Content Management",
                     status="Failed",
                     details=f"Measure update failed: no fields provided (id={measure_id}).",
                     user="System Admin",
@@ -140,7 +137,6 @@ async def update_measure(measure_id: int, measure_data: MeasureUpdate):
             if not updated:
                 SystemLogsService.create_log(
                     action="Preventive Measure Updated",
-                    category="Content Management",
                     status="Failed",
                     details=f"Measure update failed: not found (id={measure_id}).",
                     user="System Admin",
@@ -152,7 +148,6 @@ async def update_measure(measure_id: int, measure_data: MeasureUpdate):
 
         SystemLogsService.create_log(
             action="Preventive Measure Updated",
-            category="Content Management",
             status="Success",
             details=f"Updated preventive measure id={measure_id}.",
             user="System Admin",
@@ -166,7 +161,6 @@ async def update_measure(measure_id: int, measure_data: MeasureUpdate):
     except Exception as e:
         SystemLogsService.create_log(
             action="Preventive Measure Updated",
-            category="Content Management",
             status="Failed",
             details=f"Failed to update preventive measure id={measure_id}: {type(e).__name__}",
             user="System Admin",
@@ -187,7 +181,6 @@ async def delete_measure(measure_id: int):
             if not result:
                 SystemLogsService.create_log(
                     action="Preventive Measure Deleted",
-                    category="Content Management",
                     status="Failed",
                     details=f"Measure delete failed: not found (id={measure_id}).",
                     user="System Admin",
@@ -215,7 +208,6 @@ async def delete_measure(measure_id: int):
 
         SystemLogsService.create_log(
             action="Preventive Measure Deleted",
-            category="Content Management",
             status="Success",
             details=f"Deleted preventive measure id={measure_id} and renumbered category_id={category_id}.",
             user="System Admin",
@@ -229,7 +221,6 @@ async def delete_measure(measure_id: int):
     except Exception as e:
         SystemLogsService.create_log(
             action="Preventive Measure Deleted",
-            category="Content Management",
             status="Failed",
             details=f"Failed to delete preventive measure id={measure_id}: {type(e).__name__}",
             user="System Admin",

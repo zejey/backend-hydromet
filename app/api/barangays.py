@@ -56,7 +56,6 @@ async def create_barangay(payload: BarangayCreate):
     if not name:
         SystemLogsService.create_log(
             action="Barangay Created",
-            category="System Configuration",
             status="Failed",
             details="Barangay create failed: name is required.",
             user="System Admin",
@@ -77,7 +76,6 @@ async def create_barangay(payload: BarangayCreate):
 
         SystemLogsService.create_log(
             action="Barangay Created",
-            category="System Configuration",
             status="Success",
             details=f"Created barangay '{name}' (id={barangay_id}).",
             user="System Admin",
@@ -88,7 +86,6 @@ async def create_barangay(payload: BarangayCreate):
     except Exception as e:
         SystemLogsService.create_log(
             action="Barangay Created",
-            category="System Configuration",
             status="Failed",
             details=f"Failed to create barangay '{name}': {type(e).__name__}",
             user="System Admin",
@@ -104,7 +101,6 @@ async def update_barangay(barangay_id: str, payload: BarangayUpdate):
     if payload.name is None and payload.is_active is None:
         SystemLogsService.create_log(
             action="Barangay Updated",
-            category="System Configuration",
             status="Failed",
             details=f"Barangay update failed: no fields provided (id={barangay_id}).",
             user="System Admin",
@@ -120,10 +116,6 @@ async def update_barangay(barangay_id: str, payload: BarangayUpdate):
                 WHERE id = %s
             """, (barangay_id,))
             existing = cur.fetchone()
-            if not existing:
-                SystemLogsService.create_log(
-                    action="Barangay Updated",
-                    category="System Configuration",
                     status="Failed",
                     details=f"Barangay update failed: not found (id={barangay_id}).",
                     user="System Admin",
@@ -146,9 +138,6 @@ async def update_barangay(barangay_id: str, payload: BarangayUpdate):
 
             row = cur.fetchone()
 
-        SystemLogsService.create_log(
-            action="Barangay Updated",
-            category="System Configuration",
             status="Success",
             details=f"Updated barangay id={barangay_id}: name='{new_name}', is_active={new_is_active}.",
             user="System Admin",
@@ -161,7 +150,6 @@ async def update_barangay(barangay_id: str, payload: BarangayUpdate):
     except Exception as e:
         SystemLogsService.create_log(
             action="Barangay Updated",
-            category="System Configuration",
             status="Failed",
             details=f"Failed to update barangay id={barangay_id}: {type(e).__name__}",
             user="System Admin",

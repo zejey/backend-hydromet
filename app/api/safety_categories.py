@@ -43,7 +43,6 @@ async def create_category(category_data: CategoryCreate):
 
         SystemLogsService.create_log(
             action="Safety Category Created",
-            category="Content Management",
             status="Success",
             details=f"Created safety category '{new_category['name']}' (id={new_category['id']}).",
             user="System Admin",
@@ -55,7 +54,6 @@ async def create_category(category_data: CategoryCreate):
     except Exception as e:
         SystemLogsService.create_log(
             action="Safety Category Created",
-            category="Content Management",
             status="Failed",
             details=f"Failed to create safety category '{category_data.name}': {type(e).__name__}",
             user="System Admin",
@@ -158,7 +156,6 @@ async def update_category(category_id: int, category_data: CategoryUpdate):
             if not update_fields:
                 SystemLogsService.create_log(
                     action="Safety Category Updated",
-                    category="Content Management",
                     status="Failed",
                     details=f"Safety category update failed: no fields provided (id={category_id}).",
                     user="System Admin",
@@ -186,7 +183,6 @@ async def update_category(category_id: int, category_data: CategoryUpdate):
             if not updated_category:
                 SystemLogsService.create_log(
                     action="Safety Category Updated",
-                    category="Content Management",
                     status="Failed",
                     details=f"Safety category update failed: not found (id={category_id}).",
                     user="System Admin",
@@ -201,7 +197,6 @@ async def update_category(category_id: int, category_data: CategoryUpdate):
 
         SystemLogsService.create_log(
             action="Safety Category Updated",
-            category="Content Management",
             status="Success",
             details=f"Updated safety category id={category_id} ('{updated_category['name']}').",
             user="System Admin",
@@ -215,7 +210,6 @@ async def update_category(category_id: int, category_data: CategoryUpdate):
     except Exception as e:
         SystemLogsService.create_log(
             action="Safety Category Updated",
-            category="Content Management",
             status="Failed",
             details=f"Failed to update safety category id={category_id}: {type(e).__name__}",
             user="System Admin",
@@ -238,7 +232,6 @@ async def delete_category(category_id: int):
             if not deleted:
                 SystemLogsService.create_log(
                     action="Safety Category Deleted",
-                    category="Content Management",
                     status="Failed",
                     details=f"Safety category delete failed: not found (id={category_id}).",
                     user="System Admin",
@@ -253,7 +246,6 @@ async def delete_category(category_id: int):
 
         SystemLogsService.create_log(
             action="Safety Category Deleted",
-            category="Content Management",
             status="Success",
             details=f"Deleted safety category id={category_id} ('{deleted.get('name', '')}').",
             user="System Admin",
@@ -270,7 +262,6 @@ async def delete_category(category_id: int):
     except Exception as e:
         SystemLogsService.create_log(
             action="Safety Category Deleted",
-            category="Content Management",
             status="Failed",
             details=f"Failed to delete safety category id={category_id}: {type(e).__name__}",
             user="System Admin",

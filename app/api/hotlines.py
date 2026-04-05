@@ -52,7 +52,6 @@ async def create_hotline(hotline_data: HotlineCreate):
 
         SystemLogsService.create_log(
             action="Emergency Hotline Created",
-            category="System Configuration",
             status="Success",
             details=f"Created hotline '{hotline_data.service_name}' ({hotline_data.phone_number}) in category '{hotline_data.category}'.",
             user="System Admin",
@@ -64,7 +63,6 @@ async def create_hotline(hotline_data: HotlineCreate):
     except Exception as e:
         SystemLogsService.create_log(
             action="Emergency Hotline Created",
-            category="System Configuration",
             status="Failed",
             details=f"Failed to create hotline '{hotline_data.service_name}': {type(e).__name__}",
             user="System Admin",
@@ -217,7 +215,6 @@ async def update_hotline(hotline_id: str, hotline_data: HotlineUpdate):
             if not updated_hotline:
                 SystemLogsService.create_log(
                     action="Emergency Hotline Updated",
-                    category="System Configuration",
                     status="Failed",
                     details=f"Hotline update failed: hotline_id={hotline_id} not found.",
                     user="System Admin",
@@ -232,7 +229,6 @@ async def update_hotline(hotline_id: str, hotline_data: HotlineUpdate):
 
         SystemLogsService.create_log(
             action="Emergency Hotline Updated",
-            category="System Configuration",
             status="Success",
             details=f"Updated hotline id={hotline_id}.",
             user="System Admin",
@@ -246,7 +242,6 @@ async def update_hotline(hotline_id: str, hotline_data: HotlineUpdate):
     except Exception as e:
         SystemLogsService.create_log(
             action="Emergency Hotline Updated",
-            category="System Configuration",
             status="Failed",
             details=f"Failed to update hotline id={hotline_id}: {type(e).__name__}",
             user="System Admin",
@@ -268,7 +263,6 @@ async def delete_hotline(hotline_id: str):
             if not deleted:
                 SystemLogsService.create_log(
                     action="Emergency Hotline Deleted",
-                    category="System Configuration",
                     status="Failed",
                     details=f"Hotline delete failed: hotline_id={hotline_id} not found.",
                     user="System Admin",
@@ -281,7 +275,6 @@ async def delete_hotline(hotline_id: str):
 
         SystemLogsService.create_log(
             action="Emergency Hotline Deleted",
-            category="System Configuration",
             status="Success",
             details=f"Deleted hotline id={hotline_id}.",
             user="System Admin",
@@ -298,7 +291,6 @@ async def delete_hotline(hotline_id: str):
     except Exception as e:
         SystemLogsService.create_log(
             action="Emergency Hotline Deleted",
-            category="System Configuration",
             status="Failed",
             details=f"Failed to delete hotline id={hotline_id}: {type(e).__name__}",
             user="System Admin",

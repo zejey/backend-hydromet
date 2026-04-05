@@ -69,7 +69,6 @@ async def create_notification(notification_data: NotificationCreate):
 
             SystemLogsService.create_log(
                         action="Notification Posted",
-                        category="Content Management",
                         status="Success",
                         details=f"Notification posted: title='{notification_data.title}', type='{notification_data.type}', sent_to='{notification_data.sent_to}'.",
                         user="System Admin",
@@ -293,7 +292,6 @@ async def update_notification(notification_id: str, notification_data: Notificat
 
             SystemLogsService.create_log(
                 action="Notification Updated",
-                category="Content Management",
                 status="Success",
                 details=f"Notification updated: id={notification_id}.",
                 user="System Admin",
@@ -307,7 +305,6 @@ async def update_notification(notification_id: str, notification_data: Notificat
     except Exception as e:
         SystemLogsService.create_log(
             action="Notification Updated",
-            category="Content Management",
             status="Failed",
             details=f"Failed to update notification id={notification_id}: {type(e).__name__}",
             user="System Admin",
@@ -335,7 +332,6 @@ async def delete_notification(notification_id: str):
 
         SystemLogsService.create_log(
             action="Notification Deleted",
-            category="Content Management",
             status="Success",
             details=f"Notification deleted: id={notification_id}.",
             user="System Admin",
@@ -349,7 +345,6 @@ async def delete_notification(notification_id: str):
     except Exception as e:
         SystemLogsService.create_log(
             action="Notification Deleted",
-            category="Content Management",
             status="Failed",
             details=f"Failed to delete notification id={notification_id}: {type(e).__name__}",
             user="System Admin",

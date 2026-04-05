@@ -91,7 +91,6 @@ async def create_tip(tip_data: TipCreate):
             if not cur.fetchone():
                 SystemLogsService.create_log(
                     action="Safety Tip Created",
-                    category="Content Management",
                     status="Failed",
                     details=f"Tip create failed: category does not exist (category_id={tip_data.category_id}).",
                     user="System Admin",
@@ -127,7 +126,6 @@ async def create_tip(tip_data: TipCreate):
 
         SystemLogsService.create_log(
             action="Safety Tip Created",
-            category="Content Management",
             status="Success",
             details=f"Created safety tip id={new_tip['id']} (category_id={new_tip['category_id']}, level={new_tip['level']}).",
             user="System Admin",
@@ -141,7 +139,6 @@ async def create_tip(tip_data: TipCreate):
     except Exception as e:
         SystemLogsService.create_log(
             action="Safety Tip Created",
-            category="Content Management",
             status="Failed",
             details=f"Failed to create safety tip: {type(e).__name__}",
             user="System Admin",
@@ -209,7 +206,6 @@ async def update_tip(tip_id: int, tip_data: TipUpdate):
                 if not cur.fetchone():
                     SystemLogsService.create_log(
                         action="Safety Tip Updated",
-                        category="Content Management",
                         status="Failed",
                         details=f"Tip update failed: category does not exist (category_id={tip_data.category_id}).",
                         user="System Admin",
@@ -241,7 +237,6 @@ async def update_tip(tip_id: int, tip_data: TipUpdate):
             if not update_fields:
                 SystemLogsService.create_log(
                     action="Safety Tip Updated",
-                    category="Content Management",
                     status="Failed",
                     details=f"Tip update failed: no fields provided (tip_id={tip_id}).",
                     user="System Admin",
@@ -268,7 +263,6 @@ async def update_tip(tip_id: int, tip_data: TipUpdate):
             if not updated_tip:
                 SystemLogsService.create_log(
                     action="Safety Tip Updated",
-                    category="Content Management",
                     status="Failed",
                     details=f"Tip update failed: not found (tip_id={tip_id}).",
                     user="System Admin",
@@ -280,7 +274,6 @@ async def update_tip(tip_id: int, tip_data: TipUpdate):
 
         SystemLogsService.create_log(
             action="Safety Tip Updated",
-            category="Content Management",
             status="Success",
             details=f"Updated safety tip id={tip_id}.",
             user="System Admin",
@@ -294,7 +287,6 @@ async def update_tip(tip_id: int, tip_data: TipUpdate):
     except Exception as e:
         SystemLogsService.create_log(
             action="Safety Tip Updated",
-            category="Content Management",
             status="Failed",
             details=f"Failed to update safety tip id={tip_id}: {type(e).__name__}",
             user="System Admin",
@@ -316,7 +308,6 @@ async def delete_tip(tip_id: int):
             if not deleted:
                 SystemLogsService.create_log(
                     action="Safety Tip Deleted",
-                    category="Content Management",
                     status="Failed",
                     details=f"Tip delete failed: not found (tip_id={tip_id}).",
                     user="System Admin",
@@ -329,7 +320,6 @@ async def delete_tip(tip_id: int):
 
         SystemLogsService.create_log(
             action="Safety Tip Deleted",
-            category="Content Management",
             status="Success",
             details=f"Deleted safety tip id={tip_id}.",
             user="System Admin",
@@ -346,7 +336,6 @@ async def delete_tip(tip_id: int):
     except Exception as e:
         SystemLogsService.create_log(
             action="Safety Tip Deleted",
-            category="Content Management",
             status="Failed",
             details=f"Failed to delete safety tip id={tip_id}: {type(e).__name__}",
             user="System Admin",
@@ -368,7 +357,6 @@ async def add_tip_detail(tip_id: int, description: str, order_num: int = 0):
             if not cur.fetchone():
                 SystemLogsService.create_log(
                     action="Safety Tip Detail Added",
-                    category="Content Management",
                     status="Failed",
                     details=f"Add detail failed: tip not found (tip_id={tip_id}).",
                     user="System Admin",
@@ -388,7 +376,6 @@ async def add_tip_detail(tip_id: int, description: str, order_num: int = 0):
 
         SystemLogsService.create_log(
             action="Safety Tip Detail Added",
-            category="Content Management",
             status="Success",
             details=f"Added tip detail id={new_detail['id']} to tip_id={tip_id}.",
             user="System Admin",
@@ -402,7 +389,6 @@ async def add_tip_detail(tip_id: int, description: str, order_num: int = 0):
     except Exception as e:
         SystemLogsService.create_log(
             action="Safety Tip Detail Added",
-            category="Content Management",
             status="Failed",
             details=f"Failed to add tip detail (tip_id={tip_id}): {type(e).__name__}",
             user="System Admin",
@@ -424,7 +410,6 @@ async def delete_tip_detail(detail_id: int):
             if not deleted:
                 SystemLogsService.create_log(
                     action="Safety Tip Detail Deleted",
-                    category="Content Management",
                     status="Failed",
                     details=f"Delete detail failed: not found (detail_id={detail_id}).",
                     user="System Admin",
@@ -436,7 +421,6 @@ async def delete_tip_detail(detail_id: int):
 
         SystemLogsService.create_log(
             action="Safety Tip Detail Deleted",
-            category="Content Management",
             status="Success",
             details=f"Deleted tip detail id={detail_id} (tip_id={deleted.get('tip_id')}).",
             user="System Admin",
@@ -450,7 +434,6 @@ async def delete_tip_detail(detail_id: int):
     except Exception as e:
         SystemLogsService.create_log(
             action="Safety Tip Detail Deleted",
-            category="Content Management",
             status="Failed",
             details=f"Failed to delete tip detail id={detail_id}: {type(e).__name__}",
             user="System Admin",

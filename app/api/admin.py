@@ -368,7 +368,6 @@ async def delete_admin(admin_id: int):
             if not deleted:
                 SystemLogsService.create_log(
                     action="User Account Deleted",
-                    category="User Management",
                     status="Failed",
                     details=f"Admin delete failed: admin_id={admin_id} not found.",
                     user="System",
@@ -381,7 +380,6 @@ async def delete_admin(admin_id: int):
 
             SystemLogsService.create_log(
                 action="User Account Deleted",
-                category="User Management",
                 status="Success",
                 details=f"Deleted admin account: id={admin_id}.",
                 user="System",
@@ -398,7 +396,6 @@ async def delete_admin(admin_id: int):
     except Exception as e:
         SystemLogsService.create_log(
             action="User Account Deleted",
-            category="User Management",
             status="Failed",
             details=f"Error deleting admin id={admin_id}: {type(e).__name__}",
             user="System",

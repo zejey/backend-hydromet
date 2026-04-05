@@ -52,7 +52,6 @@ async def start_auto_predictor(background_tasks: BackgroundTasks, interval_hours
     if _is_running:
         SystemLogsService.create_log(
             action="Auto Predictor Started",
-            category="System Maintenance",
             status="Warning",
             details="Start requested but auto-predictor was already running.",
             user="System Admin",
@@ -70,7 +69,6 @@ async def start_auto_predictor(background_tasks: BackgroundTasks, interval_hours
 
         SystemLogsService.create_log(
             action="Auto Predictor Started",
-            category="System Maintenance",
             status="Success",
             details=f"Auto-predictor started (interval_hours={interval_hours}).",
             user="System Admin",
@@ -86,7 +84,6 @@ async def start_auto_predictor(background_tasks: BackgroundTasks, interval_hours
         logger.error(f"❌ Failed to start auto-predictor: {e}")
         SystemLogsService.create_log(
             action="Auto Predictor Started",
-            category="System Maintenance",
             status="Failed",
             details=f"Failed to start auto-predictor: {type(e).__name__}",
             user="System Admin",
@@ -102,7 +99,6 @@ async def stop_auto_predictor():
     if not _is_running:
         SystemLogsService.create_log(
             action="Auto Predictor Stopped",
-            category="System Maintenance",
             status="Warning",
             details="Stop requested but auto-predictor was not running.",
             user="System Admin",
@@ -121,7 +117,6 @@ async def stop_auto_predictor():
 
         SystemLogsService.create_log(
             action="Auto Predictor Stopped",
-            category="System Maintenance",
             status="Success",
             details="Auto-predictor stopped.",
             user="System Admin",
@@ -137,7 +132,6 @@ async def stop_auto_predictor():
         logger.error(f"❌ Failed to stop auto-predictor: {e}")
         SystemLogsService.create_log(
             action="Auto Predictor Stopped",
-            category="System Maintenance",
             status="Failed",
             details=f"Failed to stop auto-predictor: {type(e).__name__}",
             user="System Admin",
@@ -162,10 +156,6 @@ async def run_once():
             if summary.get('success')
             else "Prediction failed"
         )
-
-        SystemLogsService.create_log(
-            action="Auto Predictor Run Once",
-            category="System Maintenance",
             status="Success" if summary.get("success") else "Failed",
             details=message,
             user="System Admin",
@@ -182,7 +172,6 @@ async def run_once():
         logger.error(f"❌ Manual prediction failed: {e}")
         SystemLogsService.create_log(
             action="Auto Predictor Run Once",
-            category="System Maintenance",
             status="Failed",
             details=f"Manual run failed: {type(e).__name__}",
             user="System Admin",
