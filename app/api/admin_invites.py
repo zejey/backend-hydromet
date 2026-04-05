@@ -4,11 +4,14 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from app.models.admin_invites import (
-    AdminInviteCreate, AdminInviteResponse, SetPasswordRequest
-)
-from app.database import get_db_cursor
 from passlib.hash import bcrypt
+
+from app.database import get_db_cursor
+from app.models.admin_invites import (
+    AdminInviteCreate,
+    AdminInviteResponse,
+    SetPasswordRequest,
+)
 
 # ✅ NEW: system logs
 from app.services.system_logs_service import SystemLogsService
@@ -17,23 +20,23 @@ from app.services.system_logs_service import SystemLogsService
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 
-router = APIRouter(prefix='/api/admin-invites', tags=['AdminInvites'])
+router = APIRouter(prefix="/api/admin-invites", tags=["AdminInvites"])
 
 # Brevo configuration
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
 FROM_EMAIL = os.environ.get("BREVO_SENDER")
 FRONTEND_URL = os.environ.get("FRONTEND_URL")
 
-def send_invite_email(email: str, link: str):
-    """Send the invite email using Brevo (Sendinblue)"""
+
+def send_invite_email(email: str, link: str) -> None:
+    """Send the invite email using Brevo (Sendinblue)."""
     if not BREVO_API_KEY:
         raise RuntimeError("BREVO_API_KEY is not configured")
     if not FROM_EMAIL:
         raise RuntimeError("BREVO_SENDER is not configured")
 
-    # Configure Brevo API
     configuration = sib_api_v3_sdk.Configuration()
-    configuration.api_key['api-key'] = BREVO_API_KEY
+    configuration.api_key["api-key"] = BREVO_API_KEY
 
     api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
         sib_api_v3_sdk.ApiClient(configuration)
@@ -54,7 +57,7 @@ def send_invite_email(email: str, link: str):
         to=[{"email": email}],
         sender={"name": "HydroMet Admin System", "email": FROM_EMAIL},
         subject="HydroMet Admin Invitation",
-        html_content=html_content
+        html_content=html_content,
     )
 
     try:
@@ -67,8 +70,11 @@ def send_invite_email(email: str, link: str):
         print(f"❌ EMAIL SEND ERROR: {type(e).__name__}: {e}")
         raise
 
+
 @router.post("/invite", response_model=AdminInviteResponse)
-async def create_admin_invite(invite: AdminInviteCreate, background_tasks: BackgroundTasks):
+async def create_admin_invite(
+    invite: AdminInviteCreate, background_tasks: BackgroundTasks
+):
     token = secrets.token_urlsafe(48)
     created_at = datetime.now(timezone.utc)
     expires_at = created_at + timedelta(hours=24)
@@ -80,9 +86,19 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
             if cur.fetchone():
                 SystemLogsService.create_log(
                     action="Admin Invite Sent",
+                    status="Failed",
+                    details=f"Invite not sent: admin already exists for {invite.email}.",
+                    user=invite.invited_by or "System",
+                    role="admin",
+                )
+                raise HTTPException(
+                    status_code=400, detail="Admin with this email already exists."
+                )
+
+            # Delete old unused invites for this email
             cur.execute(
                 "DELETE FROM admin_invites WHERE email = %s AND used = false",
-                (invite.email,)
+                (invite.email,),
             )
 
             # Insert the new invite
@@ -96,6 +112,17 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
             )
             res = cur.fetchone()
 
+        if not FRONTEND_URL:
+            # Don't attempt to send email if we can't generate link
+            SystemLogsService.create_log(
+                action="Admin Invite Sent",
+                status="Failed",
+                details="FRONTEND_URL is not configured; invite created but email not sent.",
+                user=invite.invited_by or "System",
+                role="admin",
+            )
+            raise HTTPException(status_code=500, detail="FRONTEND_URL is not configured")
+
         invite_link = f"{FRONTEND_URL}/#/set-password?token={token}"
         background_tasks.add_task(send_invite_email, invite.email, invite_link)
 
@@ -105,14 +132,10 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
             status="Success",
             details=f"Admin invite sent to {invite.email} (role={invite.role}).",
             user=invite.invited_by or "System",
-            role="admin"
+            role="admin",
         )
 
-        return AdminInviteResponse(
-            success=True,
-            message="Admin invite sent.",
-            invite=res
-        )
+        return AdminInviteResponse(success=True, message="Admin invite sent.", invite=res)
 
     except HTTPException:
         raise
@@ -122,9 +145,10 @@ async def create_admin_invite(invite: AdminInviteCreate, background_tasks: Backg
             status="Failed",
             details=f"Unexpected error sending invite to {invite.email}: {type(e).__name__}",
             user=invite.invited_by or "System",
-            role="admin"
+            role="admin",
         )
         raise
+
 
 @router.post("/set-password", response_model=AdminInviteResponse)
 async def set_admin_password(req: SetPasswordRequest):
@@ -139,46 +163,49 @@ async def set_admin_password(req: SetPasswordRequest):
                     status="Failed",
                     details="Set-password failed: invalid invite token.",
                     user="System",
-                    role="admin"
+                    role="admin",
                 )
                 raise HTTPException(status_code=400, detail="Invalid token.")
-            if invite['used']:
+
+            if invite["used"]:
                 SystemLogsService.create_log(
                     action="Admin Account Created (Invite)",
                     status="Failed",
                     details=f"Set-password failed: invite already used for {invite['email']}.",
                     user="System",
-                    role="admin"
+                    role="admin",
                 )
                 raise HTTPException(status_code=400, detail="Invite already used.")
-            if invite['expires_at'] < datetime.now(timezone.utc):
+
+            if invite["expires_at"] < datetime.now(timezone.utc):
                 SystemLogsService.create_log(
                     action="Admin Account Created (Invite)",
                     status="Failed",
                     details=f"Set-password failed: invite expired for {invite['email']}.",
                     user="System",
-                    role="admin"
+                    role="admin",
                 )
                 raise HTTPException(status_code=400, detail="Invite expired.")
 
-            email = invite['email']
-            role = invite['role']
+            email = invite["email"]
+            role = invite["role"]
             username = email.split("@")[0]
             password_hash = bcrypt.hash(req.password)
             uid = str(uuid.uuid4())
 
             cur.execute(
-                """INSERT INTO admin (email, role, username, password_hash, uid)
-                   VALUES (%s, %s, %s, %s, %s)
-                   RETURNING id, email, role, username, uid
+                """
+                INSERT INTO admin (email, role, username, password_hash, uid)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id, email, role, username, uid
                 """,
-                (email, role, username, password_hash, uid)
+                (email, role, username, password_hash, uid),
             )
             created_admin = cur.fetchone()
 
             cur.execute(
                 "UPDATE admin_invites SET used = true, used_at = %s WHERE token = %s",
-                (datetime.now(timezone.utc), req.token)
+                (datetime.now(timezone.utc), req.token),
             )
 
         # ✅ Log success
@@ -188,13 +215,13 @@ async def set_admin_password(req: SetPasswordRequest):
             details=f"Admin account created via invite: {created_admin['username']} ({created_admin['email']}).",
             user=created_admin["username"],
             user_id=created_admin["id"],
-            role=created_admin["role"]
+            role=created_admin["role"],
         )
 
         return AdminInviteResponse(
             success=True,
             message="Admin account created! You can now log in.",
-            invite=None
+            invite=None,
         )
 
     except HTTPException:

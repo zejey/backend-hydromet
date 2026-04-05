@@ -157,7 +157,6 @@ async def run_once():
             else "Prediction failed"
         )
 
-        # ✅ MISSING CALL WAS HERE
         SystemLogsService.create_log(
             action="Auto Predictor Run Once",
             status="Success" if summary.get("success") else "Failed",
