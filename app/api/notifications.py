@@ -15,9 +15,13 @@ from typing import List, Optional
 from datetime import datetime
 import uuid
 
-from app.models.notification import Notification, NotificationCreate, NotificationUpdate, NotificationWithReadState
+from app.models.notification import (
+    Notification,
+    NotificationCreate,
+    NotificationUpdate,
+    NotificationWithReadState,
+)
 from app.database import get_db_cursor
-
 from app.services.system_logs_service import SystemLogsService
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
@@ -29,14 +33,16 @@ router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 # ---------------------------------------------------------------------------
 
 def _ensure_reads_table(cur) -> None:
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS user_notification_reads (
             user_id         TEXT NOT NULL,
             notification_id TEXT NOT NULL,
             read_at         TIMESTAMP NOT NULL DEFAULT NOW(),
             PRIMARY KEY (user_id, notification_id)
         )
-    """)
+        """
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -51,33 +57,50 @@ async def create_notification(notification_data: NotificationCreate):
             notification_id = str(uuid.uuid4())
             now = datetime.utcnow()
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO notifications (id, title, message, type, sent_to, status, date_time)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, title, message, type, sent_to, status, date_time
-            """, (
-                notification_id,
-                notification_data.title,
-                notification_data.message,
-                notification_data.type,
-                notification_data.sent_to,
-                notification_data.status,
-                now,
-            ))
+                """,
+                (
+                    notification_id,
+                    notification_data.title,
+                    notification_data.message,
+                    notification_data.type,
+                    notification_data.sent_to,
+                    notification_data.status,
+                    now,
+                ),
+            )
 
             created = cur.fetchone()
+            if not created:
+                raise HTTPException(status_code=500, detail="Failed to create notification")
 
-            SystemLogsService.create_log(
-                        action="Notification Posted",
-                        status="Success",
-                        details=f"Notification posted: title='{notification_data.title}', type='{notification_data.type}', sent_to='{notification_data.sent_to}'.",
-                        user="System Admin",
-                        role="admin"
-                    )
+        SystemLogsService.create_log(
+            action="Notification Posted",
+            status="Success",
+            details=(
+                f"Notification posted: title='{notification_data.title}', "
+                f"type='{notification_data.type}', sent_to='{notification_data.sent_to}'."
+            ),
+            user="System Admin",
+            role="admin",
+        )
 
-            return Notification(**cur.fetchone())
+        return Notification(**dict(created))
 
+    except HTTPException:
+        raise
     except Exception as e:
+        SystemLogsService.create_log(
+            action="Notification Posted",
+            status="Failed",
+            details=f"Error creating notification: {type(e).__name__}",
+            user="System Admin",
+            role="admin",
+        )
         raise HTTPException(status_code=500, detail=f"Error creating notification: {str(e)}")
 
 
@@ -94,8 +117,8 @@ async def get_notifications(user_id: Optional[str] = Query(default=None)):
             _ensure_reads_table(cur)
 
             if user_id:
-                # LEFT JOIN so we get all notifications + read state for this user
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT
                         n.id,
                         n.title,
@@ -109,22 +132,25 @@ async def get_notifications(user_id: Optional[str] = Query(default=None)):
                     LEFT JOIN user_notification_reads r
                         ON r.notification_id = n.id AND r.user_id = %s
                     ORDER BY n.date_time DESC
-                """, (user_id,))
+                    """,
+                    (user_id,),
+                )
             else:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT
                         id, title, message, type, sent_to, status, date_time,
                         FALSE AS is_read
                     FROM notifications
                     ORDER BY date_time DESC
-                """)
+                    """
+                )
 
             rows = cur.fetchall()
-            return [NotificationWithReadState(**row) for row in rows]
+            return [NotificationWithReadState(**dict(row)) for row in rows]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching notifications: {str(e)}")
-
 
 
 # ---------------------------------------------------------------------------
@@ -141,19 +167,20 @@ async def mark_as_read(
         with get_db_cursor() as cur:
             _ensure_reads_table(cur)
 
-            # Verify notification exists
             cur.execute("SELECT id FROM notifications WHERE id = %s", (notification_id,))
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Notification not found")
 
-            # INSERT ... ON CONFLICT DO NOTHING — safe to call multiple times
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO user_notification_reads (user_id, notification_id, read_at)
                 VALUES (%s, %s, %s)
                 ON CONFLICT (user_id, notification_id) DO NOTHING
-            """, (user_id, notification_id, datetime.utcnow()))
+                """,
+                (user_id, notification_id, datetime.utcnow()),
+            )
 
-            return {"success": True, "message": "Marked as read"}
+        return {"success": True, "message": "Marked as read"}
 
     except HTTPException:
         raise
@@ -171,12 +198,15 @@ async def mark_as_unread(
         with get_db_cursor() as cur:
             _ensure_reads_table(cur)
 
-            cur.execute("""
+            cur.execute(
+                """
                 DELETE FROM user_notification_reads
                 WHERE user_id = %s AND notification_id = %s
-            """, (user_id, notification_id))
+                """,
+                (user_id, notification_id),
+            )
 
-            return {"success": True, "message": "Marked as unread"}
+        return {"success": True, "message": "Marked as unread"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error marking as unread: {str(e)}")
@@ -191,7 +221,6 @@ async def mark_all_as_read(
         with get_db_cursor() as cur:
             _ensure_reads_table(cur)
 
-            # Fetch all notification IDs then bulk insert, skipping conflicts
             cur.execute("SELECT id FROM notifications")
             all_ids = [row["id"] for row in cur.fetchall()]
 
@@ -201,13 +230,16 @@ async def mark_all_as_read(
             now = datetime.utcnow()
             values = [(user_id, nid, now) for nid in all_ids]
 
-            cur.executemany("""
+            cur.executemany(
+                """
                 INSERT INTO user_notification_reads (user_id, notification_id, read_at)
                 VALUES (%s, %s, %s)
                 ON CONFLICT (user_id, notification_id) DO NOTHING
-            """, values)
+                """,
+                values,
+            )
 
-            return {"success": True, "message": "All marked as read", "count": len(all_ids)}
+        return {"success": True, "message": "All marked as read", "count": len(all_ids)}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error marking all as read: {str(e)}")
@@ -224,7 +256,8 @@ async def get_notification(
             _ensure_reads_table(cur)
 
             if user_id:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT
                         n.id, n.title, n.message, n.type, n.sent_to, n.status, n.date_time,
                         CASE WHEN r.notification_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_read
@@ -232,19 +265,24 @@ async def get_notification(
                     LEFT JOIN user_notification_reads r
                         ON r.notification_id = n.id AND r.user_id = %s
                     WHERE n.id = %s
-                """, (user_id, notification_id))
+                    """,
+                    (user_id, notification_id),
+                )
             else:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT id, title, message, type, sent_to, status, date_time, FALSE AS is_read
                     FROM notifications
                     WHERE id = %s
-                """, (notification_id,))
+                    """,
+                    (notification_id,),
+                )
 
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Notification not found")
 
-            return NotificationWithReadState(**row)
+            return NotificationWithReadState(**dict(row))
 
     except HTTPException:
         raise
@@ -279,26 +317,29 @@ async def update_notification(notification_id: str, notification_data: Notificat
                 raise HTTPException(status_code=400, detail="No fields to update")
 
             values.append(notification_id)
-            cur.execute(f"""
+            cur.execute(
+                f"""
                 UPDATE notifications
                 SET {', '.join(update_fields)}
                 WHERE id = %s
                 RETURNING id, title, message, type, sent_to, status, date_time
-            """, values)
+                """,
+                values,
+            )
 
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Notification not found")
 
-            SystemLogsService.create_log(
-                action="Notification Updated",
-                status="Success",
-                details=f"Notification updated: id={notification_id}.",
-                user="System Admin",
-                role="admin"
-            )
+        SystemLogsService.create_log(
+            action="Notification Updated",
+            status="Success",
+            details=f"Notification updated: id={notification_id}.",
+            user="System Admin",
+            role="admin",
+        )
 
-            return Notification(**row)
+        return Notification(**dict(row))
 
     except HTTPException:
         raise
@@ -308,7 +349,7 @@ async def update_notification(notification_id: str, notification_data: Notificat
             status="Failed",
             details=f"Failed to update notification id={notification_id}: {type(e).__name__}",
             user="System Admin",
-            role="admin"
+            role="admin",
         )
         raise HTTPException(status_code=500, detail=f"Error updating notification: {str(e)}")
 
@@ -335,7 +376,7 @@ async def delete_notification(notification_id: str):
             status="Success",
             details=f"Notification deleted: id={notification_id}.",
             user="System Admin",
-            role="admin"
+            role="admin",
         )
 
         return {"success": True, "message": "Notification deleted successfully"}
@@ -348,6 +389,6 @@ async def delete_notification(notification_id: str):
             status="Failed",
             details=f"Failed to delete notification id={notification_id}: {type(e).__name__}",
             user="System Admin",
-            role="admin"
+            role="admin",
         )
         raise HTTPException(status_code=500, detail=f"Error deleting notification: {str(e)}")
