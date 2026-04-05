@@ -12,7 +12,8 @@ from datetime import datetime
 
 from app.database import get_db_cursor, get_db_connection
 
-ALLOWED_SORT_FIELDS = {"created_at", "status", "action", "user_label"}
+# Keep this in sync with ORDER BY support.
+ALLOWED_SORT_FIELDS = {"created_at", "status", "action", "user_label", "role"}
 ALLOWED_SORT_DIR = {"asc", "desc"}
 
 DEFAULT_PAGE_SIZE = 25
@@ -77,8 +78,7 @@ class SystemLogsService:
         """
         Create a single system log row.
 
-        Keep this call small and safe: never raise to break the main flow.
-        If logging fails, swallow error.
+        Never raise to break the main flow.
         """
         try:
             with get_db_connection() as conn:
@@ -138,11 +138,13 @@ class SystemLogsService:
         page_size = max(1, min(int(page_size), MAX_PAGE_SIZE))
         offset = (page - 1) * page_size
 
-        if sort_by == "user":  # small convenience alias
+        # Convenience alias (frontend might send user)
+        if sort_by == "user":
             sort_by = "user_label"
 
         if sort_by not in ALLOWED_SORT_FIELDS:
             sort_by = "created_at"
+
         sort_dir = (sort_dir or "desc").lower()
         if sort_dir not in ALLOWED_SORT_DIR:
             sort_dir = "desc"
@@ -157,12 +159,13 @@ class SystemLogsService:
                   LOWER(COALESCE(user_label, '')) LIKE %s OR
                   LOWER(action) LIKE %s OR
                   LOWER(details) LIKE %s OR
+                  LOWER(COALESCE(role, '')) LIKE %s OR
                   LOWER(status) LIKE %s
                 )
                 """
             )
             like = f"%{q.lower()}%"
-            params.extend([like, like, like, like])
+            params.extend([like, like, like, like, like])
 
         if status and status != "All":
             where.append("status = %s")

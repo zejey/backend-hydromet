@@ -9,9 +9,7 @@ LogStatus = Literal["Success", "Failed", "Warning"]
 
 class SystemLogBase(BaseModel):
     # Display fields required by frontend
-    user: Optional[str] = Field(
-        None, max_length=120, description="Display name of actor"
-    )
+    user: Optional[str] = Field(None, max_length=120, description="Display name of actor")
     action: str = Field(..., max_length=120)
     status: LogStatus
     details: str
