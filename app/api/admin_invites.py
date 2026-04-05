@@ -199,9 +199,12 @@ async def set_admin_password(req: SetPasswordRequest):
 
     except HTTPException:
         raise
+    except Exception as e:
+        SystemLogsService.create_log(
+            action="Admin Account Created (Invite)",
             status="Failed",
-            details=f"Unexpected error during set-password: {type(e).__name__}",
+            details=f"Unexpected error during set-password for token={req.token[:8]}…: {type(e).__name__}",
             user="System",
-            role="admin"
+            role="admin",
         )
         raise
