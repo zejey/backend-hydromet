@@ -150,22 +150,26 @@ async def run_once():
 
         _last_summary = summary
 
-        total_hazards = summary.get('predictions', {}).get('summary', {}).get('total_hazards_detected', 0)
+        total_hazards = summary.get("predictions", {}).get("summary", {}).get("total_hazards_detected", 0)
         message = (
             f"Prediction completed. {total_hazards} hazard(s) detected."
-            if summary.get('success')
+            if summary.get("success")
             else "Prediction failed"
         )
+
+        # ✅ MISSING CALL WAS HERE
+        SystemLogsService.create_log(
+            action="Auto Predictor Run Once",
             status="Success" if summary.get("success") else "Failed",
             details=message,
             user="System Admin",
-            role="admin"
+            role="admin",
         )
 
         return RunOnceResponse(
-            success=summary.get('success', False),
+            success=summary.get("success", False),
             message=message,
-            summary=summary
+            summary=summary,
         )
 
     except Exception as e:
@@ -175,6 +179,6 @@ async def run_once():
             status="Failed",
             details=f"Manual run failed: {type(e).__name__}",
             user="System Admin",
-            role="admin"
+            role="admin",
         )
         raise HTTPException(status_code=500, detail=str(e))
