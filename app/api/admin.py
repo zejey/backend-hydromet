@@ -16,6 +16,7 @@ from app.database import get_db_cursor
 
 # ✅ system logs
 from app.services.system_logs_service import SystemLogsService
+from app.services.system_settings_service import SystemSettingsService
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -413,4 +414,56 @@ async def delete_admin(admin_id: int):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting admin: {str(e)}",
+        )
+
+
+# -----------------------------------------------------------------------------
+# Hazard Thresholds Configuration
+# -----------------------------------------------------------------------------
+
+@router.get("/config/hazard-thresholds")
+async def get_hazard_thresholds(current_admin: dict = Depends(get_current_admin)):
+    """Get all hazard thresholds"""
+    try:
+        thresholds = SystemSettingsService.get_hazard_thresholds()
+        return {"success": True, "thresholds": thresholds}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching thresholds: {str(e)}"
+        )
+
+
+@router.post("/config/hazard-thresholds")
+async def update_hazard_thresholds(
+    thresholds: dict, 
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Update hazard thresholds"""
+    try:
+        SystemSettingsService.update_hazard_thresholds(thresholds)
+        
+        # Log the action
+        SystemLogsService.create_log(
+            action="Config Updated",
+            status="Success",
+            details=f"Admin updated hazard thresholds.",
+            user=current_admin.get("email", "Admin"),
+            user_id=current_admin.get("sub"),
+            role=current_admin.get("role")
+        )
+        
+        return {"success": True, "message": "Hazard thresholds updated successfully"}
+    except Exception as e:
+        SystemLogsService.create_log(
+            action="Config Updated",
+            status="Failed",
+            details=f"Error updating hazard thresholds: {str(e)}",
+            user=current_admin.get("email", "Admin"),
+            user_id=current_admin.get("sub"),
+            role=current_admin.get("role")
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating thresholds: {str(e)}"
         )

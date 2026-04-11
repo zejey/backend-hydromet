@@ -32,6 +32,7 @@ from app.api import (
     internal_router,
     system_logs_router,
 )
+from app.services.system_settings_service import SystemSettingsService
 
 # Validate configuration
 Config.validate()
@@ -202,6 +203,9 @@ async def health():
 @app.on_event("startup")
 async def startup_event():
     """Run on application startup"""
+    # Initialize settings table
+    SystemSettingsService.initialize_table()
+    
     print("\n" + "="*80)
     print("🌊 HYDROMET WEATHER & ALERT SYSTEM API")
     print("="*80)

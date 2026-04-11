@@ -31,9 +31,20 @@ class HazardLabeler:
         
         Args:
             thresholds: Dictionary of threshold values per hazard
-                If None, uses default thresholds
+                If None, tries to load from database, then falls back to defaults
         """
-        self.thresholds = thresholds or self._default_thresholds()
+        if thresholds is not None:
+            self.thresholds = thresholds
+        else:
+            try:
+                # Try to load from SystemSettingsService if available
+                from app.services.system_settings_service import SystemSettingsService
+                self.thresholds = SystemSettingsService.get_hazard_thresholds()
+                logger.debug("Loaded hazard thresholds from database")
+            except Exception as e:
+                # Fallback to defaults (e.g. if DB not initialized or outside app context)
+                self.thresholds = self._default_thresholds()
+                logger.debug(f"Using default hazard thresholds (Error loading from DB: {e})")
         
     @staticmethod
     def _default_thresholds() -> Dict:
