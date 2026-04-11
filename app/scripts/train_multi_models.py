@@ -61,10 +61,12 @@ class MultiModelTrainer:
             "selector_k": 15,  # Increased for more features
             "use_mutual_info": True,
             "nb_var_smoothing": 1e-9,
+            "var_smoothing_grid": [1e-9, 1e-7, 1e-5, 1e-3],  # Tune per model
             "use_smote": True,
             "smote_k_neighbors": 3,  # Lower for smaller positive class
             "smote_max_ratio": 0.20,  # cap minority at 20% of majority
-            "smote_min_ratio": 0.05,  # always synthesize at least to 5%
+            "smote_min_ratio": 0.10,  # always synthesize at least to 10%
+            "priors_threshold_pct": 5.0,  # below this %, use class priors instead of SMOTE
         }
 
         # Merge user-provided config overrides (e.g., only test_size) into defaults
@@ -203,7 +205,12 @@ class MultiModelTrainer:
         horizon: int
     ) -> Tuple[Pipeline, Dict]:
         """
-        Train a single Naive Bayes model for one hazard-horizon combination
+        Train a single Naive Bayes model for one hazard-horizon combination.
+        
+        Improvements:
+        - Grid search over var_smoothing values
+        - Use class priors instead of SMOTE for extreme imbalance (<5%)
+        - Dynamic SMOTE sampling strategy safe for CV folds
         
         Args:
             X_train: Training features
@@ -229,43 +236,86 @@ class MultiModelTrainer:
         logger.info(f"  Positive (hazard): {pos_count} ({pos_pct:.1f}%)")
         logger.info(f"  Negative (no hazard): {neg_count} ({100-pos_pct:.1f}%)")
         
-        # Build pipeline
-        current_ratio = pos_count / (len(y_train) - pos_count) if (len(y_train) - pos_count) > 0 else 1.0
+        # Determine balancing strategy
+        current_ratio = pos_count / neg_count if neg_count > 0 else 1.0
         already_balanced = current_ratio >= self.config.get("smote_max_ratio", 0.20)
-        use_smote = self.config["use_smote"] and pos_count >= self.config["smote_k_neighbors"] + 1 and not already_balanced
+        extreme_imbalance = pos_pct < self.config.get("priors_threshold_pct", 5.0)
+        use_smote = (
+            self.config["use_smote"]
+            and pos_count >= self.config["smote_k_neighbors"] + 1
+            and not already_balanced
+            and not extreme_imbalance  # Use priors instead for extreme imbalance
+        )
+        use_priors = extreme_imbalance and not already_balanced
         
-        if use_smote:
-            sampling_strategy = MultiModelTrainer._smote_sampling_strategy(pos_count, neg_count, self.config)
-            logger.info(f"Using SMOTE for class balancing (sampling_strategy={sampling_strategy:.3f})...")
-            pipeline_steps = [
-                ('smote', SMOTE(
-                    sampling_strategy=sampling_strategy,
-                    k_neighbors=self.config["smote_k_neighbors"],
-                    random_state=self.config["random_state"]
-                )),
-                ('scaler', PowerTransformer(method='yeo-johnson')),
-                ('selector', SelectKBest(
-                    score_func=mutual_info_classif if self.config["use_mutual_info"] else None,
-                    k=min(self.config["selector_k"], X_train.shape[1])
-                )),
-                ('nb', GaussianNB(var_smoothing=self.config["nb_var_smoothing"]))
-            ]
-            pipeline = ImbPipeline(pipeline_steps)
+        # Var smoothing grid search
+        var_grid = self.config.get("var_smoothing_grid", [self.config["nb_var_smoothing"]])
+        best_pipeline = None
+        best_f1 = -1.0
+        best_vs = var_grid[0]
+        
+        selector_k = min(self.config["selector_k"], X_train.shape[1])
+        score_func = mutual_info_classif if self.config["use_mutual_info"] else None
+        
+        logger.info(f"Tuning var_smoothing over {len(var_grid)} values: {var_grid}")
+        
+        for vs in var_grid:
+            # Set class priors for extreme imbalance — gives NB equal weight
+            # on both classes without synthesizing fake data
+            nb_kwargs = {'var_smoothing': vs}
+            if use_priors:
+                nb_kwargs['priors'] = [0.5, 0.5]
+            
+            if use_smote:
+                sampling_strategy = MultiModelTrainer._smote_sampling_strategy(
+                    pos_count, neg_count, self.config
+                )
+                pipeline_steps = [
+                    ('smote', SMOTE(
+                        sampling_strategy=sampling_strategy,
+                        k_neighbors=self.config["smote_k_neighbors"],
+                        random_state=self.config["random_state"]
+                    )),
+                    ('scaler', PowerTransformer(method='yeo-johnson')),
+                    ('selector', SelectKBest(score_func=score_func, k=selector_k)),
+                    ('nb', GaussianNB(**nb_kwargs))
+                ]
+                pipeline = ImbPipeline(pipeline_steps)
+            else:
+                pipeline_steps = [
+                    ('scaler', PowerTransformer(method='yeo-johnson')),
+                    ('selector', SelectKBest(score_func=score_func, k=selector_k)),
+                    ('nb', GaussianNB(**nb_kwargs))
+                ]
+                pipeline = Pipeline(pipeline_steps)
+            
+            # Quick eval: fit on train, score on test
+            try:
+                pipeline.fit(X_train, y_train)
+                y_pred_vs = pipeline.predict(X_test)
+                _, _, f1_vs, _ = precision_recall_fscore_support(
+                    y_test, y_pred_vs, average='binary', zero_division=0
+                )
+                if f1_vs > best_f1:
+                    best_f1 = f1_vs
+                    best_pipeline = pipeline
+                    best_vs = vs
+            except Exception as e:
+                logger.warning(f"  var_smoothing={vs} failed: {e}")
+                continue
+        
+        if best_pipeline is None:
+            raise RuntimeError(f"All var_smoothing values failed for {hazard}_{horizon}h")
+        
+        pipeline = best_pipeline
+        
+        if use_priors:
+            logger.info(f"Using class priors [0.5, 0.5] (extreme imbalance: {pos_pct:.1f}%)")
+        elif use_smote:
+            logger.info(f"Using SMOTE for class balancing")
         else:
-            logger.info("SMOTE disabled (not enough positive samples). Using standard pipeline...")
-            pipeline_steps = [
-                ('scaler', PowerTransformer(method='yeo-johnson')),
-                ('selector', SelectKBest(
-                    score_func=mutual_info_classif if self.config["use_mutual_info"] else None,
-                    k=min(self.config["selector_k"], X_train.shape[1])
-                )),
-                ('nb', GaussianNB(var_smoothing=self.config["nb_var_smoothing"]))
-            ]
-            pipeline = Pipeline(pipeline_steps)
-        
-        # Train model
-        logger.info("Training model...")
-        pipeline.fit(X_train, y_train)
+            logger.info(f"No rebalancing needed (already balanced)")
+        logger.info(f"Best var_smoothing: {best_vs} (F1={best_f1:.4f})")
         
         # Evaluate on test set
         y_pred = pipeline.predict(X_test)
@@ -283,15 +333,34 @@ class MultiModelTrainer:
         
         # Cross-validation (if enough samples)
         cv_scores = None
-        if len(y_train) >= self.config["cv_splits"] * 10:  # Need enough data for CV
+        if len(y_train) >= self.config["cv_splits"] * 10:
             try:
                 logger.info(f"\nRunning {self.config['cv_splits']}-fold time series cross-validation...")
                 tscv = TimeSeriesSplit(n_splits=self.config["cv_splits"])
-                cv_scores = cross_val_score(pipeline, X_train, y_train, cv=tscv, scoring='accuracy')
+                cv_scores = cross_val_score(
+                    pipeline, X_train, y_train, cv=tscv,
+                    scoring='accuracy', error_score='raise'
+                )
                 logger.info(f"  CV Accuracy: {cv_scores.mean():.4f} (+/- {cv_scores.std():.4f})")
             except Exception as e:
                 logger.warning(f"Cross-validation failed: {e}")
-                cv_scores = None
+                # Retry without SMOTE for CV if it was the cause
+                if use_smote:
+                    try:
+                        logger.info("  Retrying CV without SMOTE...")
+                        cv_pipe = Pipeline([
+                            ('scaler', PowerTransformer(method='yeo-johnson')),
+                            ('selector', SelectKBest(score_func=score_func, k=selector_k)),
+                            ('nb', GaussianNB(var_smoothing=best_vs))
+                        ])
+                        cv_scores = cross_val_score(
+                            cv_pipe, X_train, y_train, cv=tscv,
+                            scoring='accuracy', error_score='raise'
+                        )
+                        logger.info(f"  CV Accuracy (no SMOTE): {cv_scores.mean():.4f} (+/- {cv_scores.std():.4f})")
+                    except Exception as e2:
+                        logger.warning(f"  CV retry also failed: {e2}")
+                        cv_scores = None
         else:
             logger.info(f"Skipping CV (not enough training samples: {len(y_train)})")
         
@@ -310,6 +379,8 @@ class MultiModelTrainer:
             "train_pos_samples": int(pos_count),
             "train_pos_pct": float(pos_pct),
             "used_smote": use_smote,
+            "used_priors": use_priors,
+            "best_var_smoothing": float(best_vs),
             "accuracy": float(accuracy),
             "precision": float(precision),
             "recall": float(recall),

@@ -49,8 +49,8 @@ class HazardLabeler:
                 "weather_id_range": (200, 232),  # OpenWeather thunderstorm codes
             },
             "severe_storm": {
-                "pressure_hpa": 980.0,  # Atmospheric pressure (hPa)
-                "wind_speed_ms": 20.0,  # Wind speed (m/s)
+                "pressure_hpa": 1000.0,  # Atmospheric pressure (hPa) — lowered from 980 to capture events in dataset
+                "wind_speed_ms": 15.0,  # Wind speed (m/s) — lowered from 20 to capture events in dataset
                 "include_rain": False,  # Optional: require rain
                 "rain_threshold_mm": 10.0,  # Rain threshold if include_rain=True
                 "include_thunder": False,  # Optional: require thunderstorm

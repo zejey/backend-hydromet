@@ -48,13 +48,27 @@ def engineer_extended_features(
     if time_col in df.columns:
         df = df.sort_values(time_col).reset_index(drop=True)
     
-    # Define key features to engineer
-       # Define key features to engineer
+    # ===== DROP DUPLICATE COLUMNS =====
+    # temp_c == temp, feels_like == feels_like_c, dew_point_c == dew_point (exact copies)
+    # Keeping them violates NB independence assumption and double-counts evidence
+    duplicate_cols = ['temp_c', 'feels_like', 'dew_point_c']
+    cols_to_drop = [c for c in duplicate_cols if c in df.columns]
+    if cols_to_drop:
+        df = df.drop(columns=cols_to_drop)
+        logger.info(f"Dropped {len(cols_to_drop)} duplicate columns: {cols_to_drop}")
+    
+    # ===== ADD BINARY INDICATORS =====
+    # rain_1h is 75% zeros — a binary indicator gives NB a clean signal
+    if 'rain_1h' in df.columns:
+        df['is_raining'] = (df['rain_1h'] > 0).astype(int)
+    
+    # ===== KEY FEATURES FOR LAG/DELTA/ROLLING =====
+    # Only non-redundant base features (no duplicates like temp_c/feels_like)
     key_features = [
-        'temp', 'feels_like', 'feels_like_c',
+        'temp', 'feels_like_c',
         'pressure', 'humidity', 'wind_speed',
         'rain_1h', 'dew_point'
-    ] 
+    ]
     # Filter to only features present in dataframe
     available_features = [f for f in key_features if f in df.columns]
     
@@ -124,19 +138,41 @@ def engineer_multi_hazard_features(
     logger.info(f"✓ Feature engineering complete. Final shape: {df.shape}")
     return df
 
+# Curated, causally-relevant base features per hazard type.
+# Only non-redundant columns — avoids violating NB independence assumption.
+# Lag/delta/rolling variants of these bases are included automatically.
+_HAZARD_BASE_FEATURES = {
+    "heat_stress": [
+        'feels_like_c', 'temp', 'humidity', 'dew_point',
+        'wind_speed', 'clouds_all', 'pressure',
+    ],
+    "heavy_rain": [
+        'rain_1h', 'is_raining', 'humidity', 'pressure', 'dew_point',
+        'clouds_all', 'wind_speed', 'temp',
+    ],
+    "thunderstorm": [
+        'pressure', 'humidity', 'dew_point', 'temp',
+        'clouds_all', 'wind_speed', 'rain_1h', 'is_raining',
+    ],
+    "severe_storm": [
+        'pressure', 'wind_speed', 'rain_1h', 'is_raining',
+        'humidity', 'dew_point', 'clouds_all', 'temp',
+    ],
+}
+
+
 def get_feature_columns_for_hazard(
     df: pd.DataFrame,
     hazard_type: str,
     exclude_cols: Optional[List[str]] = None
 ) -> List[str]:
     """
-    Get relevant feature columns for specific hazard type
+    Get relevant feature columns for specific hazard type.
     
-    Different hazards may benefit from different feature sets:
-    - Heat stress: temperature, humidity, solar features
-    - Heavy rain: precipitation, humidity, pressure
-    - Thunderstorm: pressure, humidity, temperature gradients
-    - Severe storm: pressure, wind, precipitation combo
+    Uses curated base features per hazard and automatically includes
+    their lag/delta/rolling variants. This keeps the feature set small
+    (~20-25) and meteorologically meaningful, which is critical for
+    GaussianNB's independence assumption.
     
     Args:
         df: DataFrame with engineered features
@@ -149,31 +185,44 @@ def get_feature_columns_for_hazard(
     if exclude_cols is None:
         exclude_cols = []
     
-    # Default exclusions (labels, timestamps, identifiers)
-    default_exclude = {
+    # Always-excluded columns (labels, timestamps, identifiers, known duplicates)
+    always_exclude = {
         'event', 'hazard_level', 'label', 'timestamp', 'date', 'dt',
-        'weather_id',  # May be too specific for general prediction
+        'weather_id',
+        # Exact duplicates of other columns
+        'temp_c', 'feels_like', 'dew_point_c',
     }
     
-    # Also exclude label columns for other hazards/horizons
+    # Exclude label columns for all hazards/horizons
     label_pattern_exclude = [
         col for col in df.columns 
         if any(col.startswith(h) for h in ['heat_stress_', 'heavy_rain_', 'thunderstorm_', 'severe_storm_'])
     ]
     
-    all_exclude = default_exclude.union(set(exclude_cols)).union(set(label_pattern_exclude))
+    all_exclude = always_exclude.union(set(exclude_cols)).union(set(label_pattern_exclude))
     
-    # Get all numeric columns
+    # Get curated base features for this hazard
+    base_features = _HAZARD_BASE_FEATURES.get(hazard_type, [])
+    
+    if not base_features:
+        # Fallback: use all numeric columns (minus exclusions)
+        logger.warning(f"No curated features for hazard '{hazard_type}', using all numeric columns")
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        return [col for col in numeric_cols if col not in all_exclude]
+    
+    # Build allowed set: base features + their lag/delta/rolling variants
+    allowed_prefixes = tuple(f"{base}_" for base in base_features)
+    
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    feature_cols = []
+    for col in numeric_cols:
+        if col in all_exclude:
+            continue
+        # Include if it's a base feature or a derived variant of one
+        if col in base_features or col.startswith(allowed_prefixes):
+            feature_cols.append(col)
     
-    # Filter out excluded columns
-    feature_cols = [col for col in numeric_cols if col not in all_exclude]
-    
-    # Hazard-specific feature selection (optional refinement)
-    # For now, use all available features for maximum information
-    # Future: could implement feature selection per hazard type
-    
-    logger.debug(f"Selected {len(feature_cols)} features for {hazard_type}")
+    logger.info(f"Selected {len(feature_cols)} curated features for {hazard_type}")
     
     return feature_cols
 
@@ -235,6 +284,9 @@ def extract_features_from_openweather_forecast(
         # Magnus formula approximation: Td ≈ T - ((100 - RH) / 5)
         dew_point_c = temp_c - ((100 - humidity) / 5.0)
 
+        temp_min_c = main.get('temp_min', temp_c)
+        temp_max_c = main.get('temp_max', temp_c)
+
         features = {
             'timestamp': timestamp,
             'dt': dt,
@@ -242,16 +294,20 @@ def extract_features_from_openweather_forecast(
             'timezone': point.get('timezone', 28800),  # default: UTC+8 (Philippines)
             'lat': point.get('lat', point.get('coord', {}).get('lat', 14.5995)),
             'lon': point.get('lon', point.get('coord', {}).get('lon', 120.9842)),
-            # Temperature
+            # Time derived
+            'day_of_year': timestamp.dayofyear,
+            'month': timestamp.month,
+            'season': (timestamp.month % 12 + 3) // 3,
+            'is_weekend': int(timestamp.weekday() >= 5),
+            # Temperature (no duplicates — temp_c/feels_like/dew_point_c are dropped)
             'temp': temp_c,
-            'temp_c': temp_c,
-            'feels_like': feels_like_c,
             'feels_like_c': feels_like_c,
-            'temp_min': main.get('temp_min', temp_c),
-            'temp_max': main.get('temp_max', temp_c),
+            'temp_min': temp_min_c,
+            'temp_max': temp_max_c,
+            'temp_range': temp_max_c - temp_min_c,
+            'heat_index': temp_c + 0.5 * (humidity - 10) if temp_c > 25 else temp_c,
             # Derived
             'dew_point': dew_point_c,
-            'dew_point_c': dew_point_c,
             # Atmospheric
             'pressure': main.get('pressure', 1013),
             'humidity': humidity,

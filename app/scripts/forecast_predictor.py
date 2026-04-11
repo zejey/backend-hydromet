@@ -30,7 +30,7 @@ class OpenWeatherForecastClient:
     def __init__(self):
         self.api_key = os.getenv("OPENWEATHER_API_KEY")
         self.lat = float(os.getenv("OPENWEATHER_LAT", 14.3644))
-        self.lon = float(os.getenv("OPENWEATHER_LON", -121.0619))
+        self.lon = float(os.getenv("OPENWEATHER_LON", 121.0619))
         
         if not self.api_key:
             raise ValueError("OPENWEATHER_API_KEY missing in .env")

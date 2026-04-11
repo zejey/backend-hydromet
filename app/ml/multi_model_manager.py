@@ -57,7 +57,7 @@ class MultiModelManager:
         self._metadata_cache: Dict[str, Dict] = {}
         
         # Supported hazards and horizons
-        self.hazards = ["heat_stress", "heavy_rain", "thunderstorm"]
+        self.hazards = ["heat_stress", "heavy_rain", "thunderstorm", "severe_storm"]
         self.horizons = [12, 24, 48]
     
     def get_model_path(self, hazard: str, horizon: int) -> Tuple[Path, Path]:

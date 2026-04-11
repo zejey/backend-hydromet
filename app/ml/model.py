@@ -232,7 +232,7 @@ def train_from_csv(csv_path):
         ('smote', SMOTE(random_state=MODEL_CONFIG["random_state"])),
         ('scaler', PowerTransformer(method="yeo-johnson", standardize=True)),
         ('selector', SelectKBest(score_func, k=selector_k)),
-        ('classifier', GaussianNB(var_smoothing=MODEL_CONFIG["nb_var_smoothing"], priors=None))
+        ('nb', GaussianNB(var_smoothing=MODEL_CONFIG["nb_var_smoothing"], priors=None))
     ])
 
     # TimeSeries CV object
@@ -253,7 +253,7 @@ def train_from_csv(csv_path):
         pipeline_no_smote = Pipeline([
             ('scaler', PowerTransformer(method="yeo-johnson", standardize=True)),
             ('selector', SelectKBest(score_func, k=selector_k)),
-            ('classifier', GaussianNB(var_smoothing=MODEL_CONFIG["nb_var_smoothing"], priors=None))
+            ('nb', GaussianNB(var_smoothing=MODEL_CONFIG["nb_var_smoothing"], priors=None))
         ])
         try:
             cv_scores = cross_val_score(pipeline_no_smote, X_train, y_train, cv=tscv, scoring="f1")
@@ -373,25 +373,6 @@ def predict_from_features(features_dict):
         "hazards_triggered": hazards if event else [],
         "hazard_type": hazard_type
     }
-
-    logger.info("   ✅ Final result: %s, %s, %.3f", result['event'], result['hazard_type'], result['probability'])
-
-    # Notifications (keep, but NotificationService should be robust to env toggles)
-    if int(pred) == 1 and hazard_type in hazard_notification_templates:
-        logger.info("   📧 Sending notification for %s", hazard_type)
-        template = hazard_notification_templates[hazard_type]
-
-        notif_service = NotificationService()
-        notif_service.send_notification(
-            title=template["in_app"]["title"],
-            message=template["in_app"]["message"],
-            notif_type="Alert",
-            status="Active",
-            send_sms=True,
-            sms_recipients=None
-        )
-    else:
-        logger.debug("   ℹ️  No notification sent (pred=%s, hazard_type=%s)", pred, hazard_type)
 
     return result
 
