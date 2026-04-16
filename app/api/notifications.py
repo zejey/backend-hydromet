@@ -104,10 +104,19 @@ async def create_notification(notification_data: NotificationCreate):
         raise HTTPException(status_code=500, detail=f"Error creating notification: {str(e)}")
 
 
-@router.get("/", response_model=List[NotificationWithReadState])
-async def get_notifications(user_id: Optional[str] = Query(default=None)):
+@router.get("/")
+async def get_notifications(
+    user_id: Optional[str] = Query(default=None),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(25, ge=1, le=200, description="Items per page"),
+    type: Optional[str] = Query(default=None, description="Filter by notification type"),
+    status_filter: Optional[str] = Query(default=None, alias="status", description="Filter by status"),
+    start_date: Optional[str] = Query(default=None, description="Start date (ISO 8601)"),
+    end_date: Optional[str] = Query(default=None, description="End date (ISO 8601)"),
+    search: Optional[str] = Query(default=None, description="Search title or message"),
+):
     """
-    Get all notifications (newest first).
+    Get notifications with pagination, filtering, and date range.
 
     Pass ?user_id=<id> to include per-user is_read state.
     Without user_id every item returns is_read=False.
@@ -116,38 +125,75 @@ async def get_notifications(user_id: Optional[str] = Query(default=None)):
         with get_db_cursor() as cur:
             _ensure_reads_table(cur)
 
+            where_parts: list[str] = []
+            params: list = []
+
+            if type:
+                where_parts.append("n.type = %s")
+                params.append(type)
+
+            if status_filter:
+                where_parts.append("n.status = %s")
+                params.append(status_filter)
+
+            if start_date:
+                where_parts.append("n.date_time >= %s")
+                params.append(start_date)
+
+            if end_date:
+                where_parts.append("n.date_time < (%s::date + INTERVAL '1 day')")
+                params.append(end_date)
+
+            if search:
+                where_parts.append("(n.title ILIKE %s OR n.message ILIKE %s)")
+                like = f"%{search}%"
+                params.extend([like, like])
+
+            where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
+            # Total count
+            cur.execute(f"SELECT COUNT(*) AS cnt FROM notifications n {where_clause}", params)
+            total = cur.fetchone()["cnt"]
+
+            offset = (page - 1) * limit
+
             if user_id:
                 cur.execute(
-                    """
+                    f"""
                     SELECT
-                        n.id,
-                        n.title,
-                        n.message,
-                        n.type,
-                        n.sent_to,
-                        n.status,
-                        n.date_time,
+                        n.id, n.title, n.message, n.type, n.sent_to, n.status, n.date_time,
                         CASE WHEN r.notification_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_read
                     FROM notifications n
                     LEFT JOIN user_notification_reads r
                         ON r.notification_id = n.id AND r.user_id = %s
+                    {where_clause}
                     ORDER BY n.date_time DESC
+                    LIMIT %s OFFSET %s
                     """,
-                    (user_id,),
+                    [user_id] + params + [limit, offset],
                 )
             else:
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         id, title, message, type, sent_to, status, date_time,
                         FALSE AS is_read
-                    FROM notifications
+                    FROM notifications n
+                    {where_clause}
                     ORDER BY date_time DESC
-                    """
+                    LIMIT %s OFFSET %s
+                    """,
+                    params + [limit, offset],
                 )
 
             rows = cur.fetchall()
-            return [NotificationWithReadState(**dict(row)) for row in rows]
+            return {
+                "items": [NotificationWithReadState(**dict(row)) for row in rows],
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "pages": (total + limit - 1) // limit if total else 0,
+            }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching notifications: {str(e)}")

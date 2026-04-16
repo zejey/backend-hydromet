@@ -2,7 +2,7 @@
 Admin API endpoints
 """
 import uuid
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, Query, status, Depends
 from typing import List, Optional
 import jwt
 import datetime
@@ -48,14 +48,53 @@ class Token(BaseModel):
     token_type: str
 
 
-@router.get("/", response_model=List[Admin])
-async def get_all_admins():
-    """Get a list of all admins"""
+@router.get("/")
+async def get_all_admins(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(25, ge=1, le=200, description="Items per page"),
+    search: Optional[str] = Query(None, description="Search by email or username"),
+    role: Optional[str] = Query(None, description="Filter by role"),
+):
+    """Get a paginated list of admins with optional search/filter"""
     try:
         with get_db_cursor() as cur:
-            cur.execute("SELECT id, email, role, username, uid FROM admin")
+            where_parts: list[str] = []
+            params: list = []
+
+            if search:
+                where_parts.append("(email ILIKE %s OR username ILIKE %s)")
+                like = f"%{search}%"
+                params.extend([like, like])
+
+            if role:
+                where_parts.append("role = %s")
+                params.append(role)
+
+            where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
+            cur.execute(f"SELECT COUNT(*) AS cnt FROM admin {where_clause}", params)
+            total = cur.fetchone()["cnt"]
+
+            offset = (page - 1) * limit
+            cur.execute(
+                f"""
+                SELECT id, email, role, username, uid
+                FROM admin
+                {where_clause}
+                ORDER BY id
+                LIMIT %s OFFSET %s
+                """,
+                params + [limit, offset],
+            )
             admins = cur.fetchall()
-            return [Admin(**admin) for admin in admins]
+
+            return {
+                "items": [Admin(**a) for a in admins],
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "pages": (total + limit - 1) // limit if total else 0,
+            }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

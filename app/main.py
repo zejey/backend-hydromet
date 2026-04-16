@@ -3,9 +3,16 @@ Hydromet Weather & Alert System - Main API
 Complete FastAPI application with ML predictions
 """
 
-from fastapi import FastAPI
+import logging
+import time
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from datetime import datetime
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.config import Config
 from app.database import init_connection_pool, close_connection_pool, test_connection
@@ -36,6 +43,21 @@ from app.api import (
 )
 from app.services.system_settings_service import SystemSettingsService
 
+logger = logging.getLogger("hydromet.api")
+
+# ---------------------------------------------------------------------------
+# Sentry (optional — only activates if SENTRY_DSN is set)
+# ---------------------------------------------------------------------------
+if Config.SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=Config.SENTRY_DSN,
+        environment=Config.ENVIRONMENT,
+        release=Config.APP_VERSION,
+        traces_sample_rate=0.2,
+        send_default_pii=False,
+    )
+
 # Validate configuration
 Config.validate()
 
@@ -45,11 +67,16 @@ init_connection_pool()
 # Test database connection
 test_connection()
 
+# ---------------------------------------------------------------------------
+# Rate limiter
+# ---------------------------------------------------------------------------
+limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
+
 # Create FastAPI app
 app = FastAPI(
     title="Hydromet Weather & Alert System API",
     description="Complete API for weather monitoring, hazard prediction, and alert management",
-    version="2.0.0",
+    version=Config.APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -60,14 +87,36 @@ app = FastAPI(
     }
 )
 
-# CORS middleware
+# Attach rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS middleware — origins from CORS_ORIGINS env var
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ⚠️ Change to specific origins in production
+    allow_origins=Config.get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ---------------------------------------------------------------------------
+# Request logging middleware
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    elapsed_ms = round((time.time() - start) * 1000, 1)
+    logger.info(
+        "%s %s %s %sms",
+        request.method,
+        request.url.path,
+        response.status_code,
+        elapsed_ms,
+    )
+    return response
 
 # Include all routers
 app.include_router(users_router)              # /api/users/*
@@ -103,7 +152,7 @@ async def root():
     return {
         "success": True,
         "name": "Hydromet Weather & Alert System API",
-        "version": "2.0.0",
+        "version": Config.APP_VERSION,
         "description": "Weather monitoring, ML-based hazard prediction, and alert management",
         "author": "zjayarcena",
         "created": "2025-11-01",
@@ -193,7 +242,8 @@ async def health():
         "success": True,
         "message": "Hydromet API is running smoothly",
         "status": "healthy",
-        "version": "2.0.0",
+        "version": Config.APP_VERSION,
+        "environment": Config.ENVIRONMENT,
         "database": f"{Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_NAME}",
         "ml_model_ready": model_ready,
         "ml_models_available": f"{model_status['available_count']}/{model_status['total_expected']}",
@@ -215,7 +265,8 @@ async def startup_event():
     print("="*80)
     print(f"📅 Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
     print(f"👤 Developer: zjayarcena")
-    print(f"🔧 Version: 2.0.0")
+    print(f"🔧 Version: {Config.APP_VERSION}")
+    print(f"🌍 Environment: {Config.ENVIRONMENT}")
     print("="*80)
     print("\n🎯 Features:")
     print("   ✅ User Authentication (OTP)")

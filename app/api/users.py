@@ -2,8 +2,8 @@
 User and Authentication API endpoints
 """
 
-from fastapi import APIRouter, HTTPException, status
-from typing import List
+from fastapi import APIRouter, HTTPException, Query, status
+from typing import List, Optional
 from datetime import datetime
 import uuid
 
@@ -204,20 +204,69 @@ async def create_user(user_data: UserCreate):
 
 
 # ✅ FIX: Handle both "/" and "" (with and without trailing slash)
-@router.get("/", response_model=List[User])
-@router.get("", response_model=List[User])
-async def get_users():
-    """Get all users"""
+@router.get("/")
+@router.get("")
+async def get_users(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(25, ge=1, le=200, description="Items per page"),
+    search: Optional[str] = Query(None, description="Search by name, phone, or barangay"),
+    role: Optional[str] = Query(None, description="Filter by role"),
+    is_verified: Optional[bool] = Query(None, description="Filter by verification status"),
+    barangay: Optional[str] = Query(None, description="Filter by barangay"),
+):
+    """Get users with pagination, search, and filters"""
     with get_db_cursor() as cur:
-        cur.execute("""
+        where_parts: list[str] = []
+        params: list = []
+
+        if search:
+            where_parts.append(
+                "(first_name ILIKE %s OR last_name ILIKE %s OR phone_number ILIKE %s OR barangay ILIKE %s)"
+            )
+            like = f"%{search}%"
+            params.extend([like, like, like, like])
+
+        if role:
+            where_parts.append("role = %s")
+            params.append(role)
+
+        if is_verified is not None:
+            where_parts.append("is_verified = %s")
+            params.append(is_verified)
+
+        if barangay:
+            where_parts.append("barangay ILIKE %s")
+            params.append(f"%{barangay}%")
+
+        where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
+        # Total count
+        cur.execute(f"SELECT COUNT(*) AS cnt FROM users {where_clause}", params)
+        total = cur.fetchone()["cnt"]
+
+        # Paginated result
+        offset = (page - 1) * limit
+        cur.execute(
+            f"""
             SELECT id, first_name, middle_name, last_name, suffix,
                    house_address, barangay, phone_number, role,
                    is_verified, created_at, updated_at
             FROM users
+            {where_clause}
             ORDER BY created_at DESC
-        """)
+            LIMIT %s OFFSET %s
+            """,
+            params + [limit, offset],
+        )
         users = cur.fetchall()
-        return [User(**user) for user in users]
+
+        return {
+            "items": [User(**u) for u in users],
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "pages": (total + limit - 1) // limit if total else 0,
+        }
 
 
 @router.get("/{user_id}", response_model=User)

@@ -5,6 +5,8 @@ pydantic
 
 # Database
 psycopg2-binary
+sqlalchemy
+alembic
 
 # Security
 bcrypt<4.0.0
@@ -32,6 +34,12 @@ python-multipart
 email-validator
 pytz
 httpx
+
+# Rate Limiting
+slowapi
+
+# Error Monitoring
+sentry-sdk[fastapi]
    
 # Email
 sendgrid

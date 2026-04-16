@@ -13,8 +13,10 @@ on first use). Email lookup goes through the existing user_emails table.
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.database import get_db_cursor
 from app.utils.security import hash_password, verify_password
@@ -26,6 +28,7 @@ from app.utils.jwt_handler import (
 from app.services.system_logs_service import SystemLogsService
 
 router = APIRouter(prefix="/api/auth", tags=["User Authentication"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +98,8 @@ def _ensure_password_column(cur) -> None:
 # ---------------------------------------------------------------------------
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
-async def register(data: RegisterRequest):
+@limiter.limit("5/minute")
+async def register(request: Request, data: RegisterRequest):
     """
     Register a new user with email and password.
 
@@ -190,7 +194,8 @@ async def register(data: RegisterRequest):
 # ---------------------------------------------------------------------------
 
 @router.post("/login", response_model=TokenResponse)
-async def login(data: LoginRequest):
+@limiter.limit("10/minute")
+async def login(request: Request, data: LoginRequest):
     """
     Authenticate a user with email and password.
 
@@ -256,7 +261,8 @@ async def login(data: LoginRequest):
 # ---------------------------------------------------------------------------
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(data: RefreshRequest):
+@limiter.limit("20/minute")
+async def refresh(request: Request, data: RefreshRequest):
     """
     Exchange a valid refresh token for a fresh pair of access + refresh tokens.
     """

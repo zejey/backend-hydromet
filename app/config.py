@@ -49,9 +49,28 @@ class Config:
     OTP_MAX_REQUESTS_PER_PERIOD = int(os.getenv("OTP_MAX_REQUESTS_PER_PERIOD", 3))
     
     # API Settings
+    APP_VERSION = os.getenv("APP_VERSION", "2.1.0")
     API_VERSION = "v1"
     API_TITLE = "Hydromet API"
     API_DESCRIPTION = "Weather Alert and Safety Management System"
+
+    # CORS — comma-separated origins, or "*" for allow-all (dev only)
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
+
+    # Sentry
+    SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+
+    @classmethod
+    def get_cors_origins(cls) -> list[str]:
+        """Parse CORS_ORIGINS env var into a list."""
+        raw = cls.CORS_ORIGINS.strip()
+        if raw == "*":
+            return ["*"]
+        return [o.strip() for o in raw.split(",") if o.strip()]
+
+    @classmethod
+    def is_production(cls) -> bool:
+        return cls.ENVIRONMENT.lower() == "production"
     
     @classmethod
     def get_database_url(cls):
