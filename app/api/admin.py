@@ -4,86 +4,27 @@ Admin API endpoints
 import uuid
 from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List, Optional
-from passlib.context import CryptContext
 import jwt
 import datetime
-import os
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer
 
 from app.models.admin import Admin, AdminCreate
 from app.database import get_db_cursor
+from app.utils.security import hash_password, verify_password
+from app.utils.jwt_handler import (
+    SECRET_KEY,
+    ALGORITHM,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    create_access_token,
+)
 
 # ✅ system logs
 from app.services.system_logs_service import SystemLogsService
 from app.services.system_settings_service import SystemSettingsService
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# -----------------------------------------------------------------------------
-# JWT config
-# -----------------------------------------------------------------------------
-# IMPORTANT:
-# - HS256 secrets should be at least 32 bytes to avoid InsecureKeyLengthWarning
-# - In production, always set SECRET_KEY in Railway env vars
-SECRET_KEY = os.environ.get("SECRET_KEY", "DEV_ONLY_SUPER_SECRET_KEY_CHANGE_ME_32+CHARS")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
-
-if len(SECRET_KEY.encode("utf-8")) < 32:
-    # Don’t hard-crash if you prefer, but at least warn loudly.
-    # You can change this to: raise RuntimeError(...) to enforce in prod.
-    print(
-        "WARNING: SECRET_KEY is shorter than 32 bytes; "
-        "use a longer SECRET_KEY to avoid weak JWT HMAC secrets.",
-        flush=True,
-    )
-
 router = APIRouter(prefix="/api/admins", tags=["Admin Management"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admins/login")
-
-
-def hash_password(password: str) -> str:
-    # Truncate at byte level to 72 bytes (bcrypt limit)
-    password_bytes = password.encode("utf-8")
-    if len(password_bytes) > 72:
-        password_bytes = password_bytes[:72]
-        try:
-            password = password_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            for i in range(1, 5):  # UTF-8 chars are max 4 bytes
-                try:
-                    password = password_bytes[:-i].decode("utf-8")
-                    break
-                except UnicodeDecodeError:
-                    continue
-    return pwd_context.hash(password)
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    password_bytes = plain_password.encode("utf-8")
-    if len(password_bytes) > 72:
-        password_bytes = password_bytes[:72]
-        try:
-            plain_password = password_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            for i in range(1, 5):
-                try:
-                    plain_password = password_bytes[:-i].decode("utf-8")
-                    break
-                except UnicodeDecodeError:
-                    continue
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def create_access_token(data: dict, expires_delta: Optional[int] = None) -> str:
-    to_encode = data.copy()
-    expire = datetime.datetime.utcnow() + datetime.timedelta(
-        minutes=expires_delta or ACCESS_TOKEN_EXPIRE_MINUTES
-    )
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
 
 def get_current_admin(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(

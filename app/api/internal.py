@@ -7,6 +7,9 @@ Forecast routes require the X-Internal-Secret header to match INTERNAL_CRON_SECR
 import os
 from fastapi import APIRouter, Header, HTTPException, status, Query
 from app.services.openweather_collector import run_collection
+from app.services.email_service import EmailService
+from app.services.semaphore_notification import get_semaphore_service
+from app.services.alert_dispatcher import get_alert_dispatcher
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -156,3 +159,82 @@ async def forecast_run_test_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         )
+
+
+@router.post("/test/email")
+async def test_email(
+    email: str = Query(...),
+    subject: str = Query(default="Test Email"),
+    x_internal_token: str = Header(default="", alias="X-Internal-Token"),
+):
+    """Send a test email to an arbitrary address."""
+    _verify_token(x_internal_token)
+    try:
+        # Using the hazard alert template as it's the more complex one
+        result = EmailService.send_hazard_alert_email(
+            recipient_email=email,
+            hazard_name="Test Hazard",
+            horizon=24,
+            probability=0.75,
+            safety_tips=["Test tip 1", "Test tip 2"]
+        )
+        return {"success": True, "detail": "Test email sent", "result": result}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/test/sms")
+async def test_sms(
+    phone: str = Query(...),
+    message: str = Query(default="This is a test SMS from HydroMet."),
+    x_internal_token: str = Header(default="", alias="X-Internal-Token"),
+):
+    """Send a test SMS to an arbitrary phone number."""
+    _verify_token(x_internal_token)
+    try:
+        sms_service = get_semaphore_service()
+        success, response, error = sms_service.send_sms(phone, message)
+        return {"success": success, "response": response, "error": error}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/test/full-alert/{user_id}")
+async def test_full_alert(
+    user_id: str,
+    x_internal_token: str = Header(default="", alias="X-Internal-Token"),
+):
+    """Send a full multi-channel test alert to a specific user (In-app + SMS + Email)."""
+    _verify_token(x_internal_token)
+    try:
+        dispatcher = get_alert_dispatcher()
+        # Mocking a prediction results for the dispatcher
+        mock_predictions = {
+            "success": True,
+            "predictions": {
+                "heavy_rain": {
+                    "24h": {
+                        "available": True,
+                        "hazard_detected": True,
+                        "probability": 0.85
+                    }
+                }
+            }
+        }
+        
+        # Get user details from DB to provide to dispatcher
+        from app.database import get_db_cursor
+        with get_db_cursor() as cur:
+            cur.execute("SELECT id as user_id, phone_number, email FROM users WHERE id = %s", (user_id,))
+            user = cur.fetchone()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+        
+        result = dispatcher.dispatch_from_predictions(
+            predictions=mock_predictions,
+            location="Test Location",
+            recipients=[dict(user)]
+        )
+        return {"success": True, "result": result}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

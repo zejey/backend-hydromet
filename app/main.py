@@ -12,6 +12,7 @@ from app.database import init_connection_pool, close_connection_pool, test_conne
 from app.api import (
     users_router,
     admin_router,
+    auth_router,
     notifications_router,
     hotlines_router,
     safety_categories_router,
@@ -30,6 +31,7 @@ from app.api import (
     email_verification_router,
     barangays_router,
     internal_router,
+    analytics_router,
     system_logs_router,
 )
 from app.services.system_settings_service import SystemSettingsService
@@ -88,6 +90,8 @@ app.include_router(user_emails_router)
 app.include_router(email_verification_router)
 app.include_router(barangays_router)
 app.include_router(internal_router)
+app.include_router(auth_router)               # /api/auth/*
+app.include_router(analytics_router)           # /api/analytics/*
 app.include_router(system_logs_router)
 
 

@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
 from app.database import get_db_cursor, get_db_connection
 from app.services.semaphore_notification import get_semaphore_service
+from app.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
@@ -229,10 +230,9 @@ class AlertDispatcher:
         try:
             with get_db_cursor() as cur:
                 cur.execute("""
-                    SELECT id as user_id, phone_number, first_name, last_name
+                    SELECT id as user_id, phone_number, email, first_name, last_name
                     FROM users
-                    WHERE phone_number IS NOT NULL
-                      AND phone_number != ''
+                    WHERE (phone_number IS NOT NULL OR email IS NOT NULL)
                       AND is_verified = TRUE
                 """)
                 
@@ -281,15 +281,31 @@ class AlertDispatcher:
             }
         
         # Send SMS via Semaphore
-        phone_numbers = [u['phone_number'] for u in eligible]
+        phone_numbers = [u['phone_number'] for u in eligible if u.get('phone_number')]
         
-        send_results = self.sms_service.send_hazard_alert(
-            phone_numbers=phone_numbers,
-            hazard=hazard,
-            horizon=horizon,
-            probability=probability,
-            location=location
-        )
+        send_results = {"success": 0, "failed": 0, "details": []}
+        if phone_numbers:
+            send_results = self.sms_service.send_hazard_alert(
+                phone_numbers=phone_numbers,
+                hazard=hazard,
+                horizon=horizon,
+                probability=probability,
+                location=location
+            )
+        
+        # Send Emails concurrently (simple loop for now)
+        for user in eligible:
+            email = user.get('email')
+            if email:
+                # Fetch safety tips if possible, otherwise empty
+                # For simplicity, we'll use a placeholder or basic tips
+                EmailService.send_hazard_alert_email(
+                    recipient_email=email,
+                    hazard_name=hazard.replace("_", " ").title(),
+                    horizon=horizon,
+                    probability=probability,
+                    safety_tips=["Stay indoors", "Monitor local news"]
+                )
         
         # Log each dispatch
         message = self.sms_service.format_hazard_message(hazard, horizon, probability, location)

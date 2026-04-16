@@ -5,6 +5,7 @@ All API routers for the application
 
 from app.api.users import router as users_router
 from app.api.admin import router as admin_router
+from app.api.auth import router as auth_router
 from app.api.notifications import router as notifications_router
 from app.api.hotlines import router as hotlines_router
 from app.api.safety_categories import router as safety_categories_router
@@ -23,11 +24,13 @@ from app.api.user_emails import router as user_emails_router
 from app.api.email_verification import router as email_verification_router
 from app.api.barangays import router as barangays_router
 from app.api.internal import router as internal_router
+from app.api.analytics import router as analytics_router
 from app.api.system_logs import router as system_logs_router
 
 __all__ = [
     'users_router',
     'admin_router',
+    'auth_router',
     'notifications_router',
     'hotlines_router',
     'safety_categories_router',
@@ -46,5 +49,6 @@ __all__ = [
     'email_verification_router',
     'barangays_router',
     'internal_router',
+    'analytics_router',
     'system_logs_router',
 ]

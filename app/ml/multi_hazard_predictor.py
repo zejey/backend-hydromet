@@ -54,7 +54,7 @@ class MultiHazardPredictor:
         Returns:
             DataFrame with engineered features
         """
-        from feature_engineering import extract_features_from_openweather_forecast
+        from app.ml.feature_engineering import extract_features_from_openweather_forecast
         
         if source == "openweather":
             # Handle both current weather and forecast formats

@@ -31,7 +31,7 @@ import os
 import sys
 
 # Ensure project root is on the path so app.* imports work.
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from dotenv import load_dotenv
 
