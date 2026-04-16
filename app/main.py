@@ -62,10 +62,18 @@ if Config.SENTRY_DSN:
 Config.validate()
 
 # Initialize database connection pool
-init_connection_pool()
-
-# Test database connection
-test_connection()
+try:
+    init_connection_pool()
+    if not test_connection():
+        logger.warning(
+            "Database connection test failed during startup. "
+            "API will continue running and retry database access on demand."
+        )
+except Exception:
+    logger.exception(
+        "Database initialization failed during startup. "
+        "API will continue running and retry database access on demand."
+    )
 
 # ---------------------------------------------------------------------------
 # Rate limiter
@@ -258,7 +266,10 @@ async def health():
 async def startup_event():
     """Run on application startup"""
     # Initialize settings table
-    SystemSettingsService.initialize_table()
+    try:
+        SystemSettingsService.initialize_table()
+    except Exception:
+        logger.exception("Failed to initialize system settings table at startup")
     
     print("\n" + "="*80)
     print("🌊 HYDROMET WEATHER & ALERT SYSTEM API")
