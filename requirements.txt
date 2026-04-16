@@ -25,6 +25,7 @@ imbalanced-learn
 
 # Google Cloud
 google-cloud-firestore
+firebase-admin
 
 # Additional
 python-multipart

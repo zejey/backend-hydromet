@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+build/
+dist/
+*.egg-info/
+
+# Data & Models (Exclude large training data, keep models)
+app/data/openweather_training*.csv
+app/data/training-data.csv
+training.txt
+
+# Git
+.git/
+.gitignore
+.github/
+
+# Environment
+.env
+.env.*
+
+# Notebooks
+*.ipynb
+
+# Local IDE
+.vscode/
+.idea/
+pyrightconfig.json
