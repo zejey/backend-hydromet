@@ -26,6 +26,8 @@ from app.api.barangays import router as barangays_router
 from app.api.internal import router as internal_router
 from app.api.analytics import router as analytics_router
 from app.api.system_logs import router as system_logs_router
+from app.api.earthquakes import router as earthquakes_router
+from app.api.disasters import router as disasters_router
 
 __all__ = [
     'users_router',
@@ -51,4 +53,6 @@ __all__ = [
     'internal_router',
     'analytics_router',
     'system_logs_router',
+    'earthquakes_router',
+    'disasters_router',
 ]

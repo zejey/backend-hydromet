@@ -418,6 +418,35 @@ def run_forecast(test_user_id: Optional[str] = None, force_hazard: Optional[str]
         # 7. Log to dedup table
         _log_forecast_alert(hazard, severity, scope)
 
+    # ── 8. Localized dispatch (per-barangay thresholds) ──────────────
+    localized_result = None
+    if not test_user_id:
+        try:
+            from app.services.alert_dispatcher import get_alert_dispatcher
+
+            # Build weather_data dict from the forecast for barangay evaluation
+            # Use the most severe conditions across all forecast items
+            first_item = forecast_data.get("list", [{}])[0] if forecast_data.get("list") else {}
+            main = first_item.get("main") or {}
+            rain = first_item.get("rain") or {}
+            wind = first_item.get("wind") or {}
+
+            weather_for_eval = {
+                "rain_1h": rain.get("1h", 0) or 0,
+                "rain_3h": rain.get("3h", 0) or 0,
+                "feels_like": main.get("feels_like", 0) or 0,
+                "wind_speed": wind.get("speed", 0) or 0,
+            }
+
+            dispatcher = get_alert_dispatcher()
+            localized_result = dispatcher.dispatch_localized_alerts(
+                weather_data=weather_for_eval,
+                location=location_name,
+            )
+            logger.info(f"Localized dispatch: {localized_result}")
+        except Exception as loc_err:
+            logger.error(f"Localized dispatch failed: {loc_err}", exc_info=True)
+
     result = {
         "success": True,
         "scope": scope,
@@ -427,6 +456,7 @@ def run_forecast(test_user_id: Optional[str] = None, force_hazard: Optional[str]
         "alerts_sent": alerts_sent,
         "notifications_created": notifications_created,
         "recipients_count": len(recipients),
+        "localized_dispatch": localized_result,
     }
 
     logger.info(f"Forecast run complete: {result}")

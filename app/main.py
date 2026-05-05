@@ -40,6 +40,8 @@ from app.api import (
     internal_router,
     analytics_router,
     system_logs_router,
+    earthquakes_router,
+    disasters_router,
 )
 from app.services.system_settings_service import SystemSettingsService
 
@@ -150,6 +152,8 @@ app.include_router(internal_router)
 app.include_router(auth_router)               # /api/auth/*
 app.include_router(analytics_router)           # /api/analytics/*
 app.include_router(system_logs_router)
+app.include_router(earthquakes_router)           # /api/earthquakes/*
+app.include_router(disasters_router)             # /api/disasters/*
 
 
 @app.get("/")
@@ -161,7 +165,7 @@ async def root():
         "success": True,
         "name": "Hydromet Weather & Alert System API",
         "version": Config.APP_VERSION,
-        "description": "Weather monitoring, ML-based hazard prediction, and alert management",
+        "description": "Early warning system with multi-disaster monitoring, ML-based hazard prediction, and localized barangay-level alerts",
         "author": "zjayarcena",
         "created": "2025-11-01",
         "documentation": {
@@ -197,6 +201,29 @@ async def root():
                 "weatherlink_current": "GET /api/weather/weatherlink/current",
                 "weatherlink_historic": "GET /api/weather/weatherlink/historic"
             },
+            "disasters": {
+                "active": "GET /api/disasters/active",
+                "dashboard": "GET /api/disasters/dashboard",
+                "detail": "GET /api/disasters/{id}",
+                "history": "GET /api/disasters/history",
+                "manual_create": "POST /api/disasters/manual",
+                "resolve": "PUT /api/disasters/{id}/resolve",
+                "monitor_run": "POST /api/disasters/monitor/run"
+            },
+            "earthquakes": {
+                "recent": "GET /api/earthquakes/recent",
+                "significant": "GET /api/earthquakes/significant",
+                "nearest": "GET /api/earthquakes/nearest"
+            },
+            "barangays": {
+                "list": "GET /api/barangays",
+                "create": "POST /api/barangays",
+                "update": "PUT /api/barangays/{id}",
+                "vulnerability": "GET /api/barangays/{id}/vulnerability",
+                "set_vulnerability": "PUT /api/barangays/{id}/vulnerability",
+                "at_risk": "GET /api/barangays/at-risk",
+                "evaluate_risk": "POST /api/barangays/evaluate-risk"
+            },
             "admin": {
                 "list": "GET /api/admins",
                 "create": "POST /api/admins",
@@ -222,8 +249,13 @@ async def root():
             }
         },
         "features": [
-            "OTP Authentication with SMS",
+            "Multi-Disaster Early Warning System (Earthquake, Typhoon, Flood)",
+            "Barangay-Level Localized Hazard Alerts",
+            "Real-time Earthquake Monitoring (USGS)",
+            "Global Disaster Tracking (GDACS)",
             "ML-based Weather Hazard Prediction",
+            "Per-Barangay Vulnerability Profiles & Thresholds",
+            "OTP Authentication with SMS",
             "Real-time Weather Data (OpenWeather & WeatherLink)",
             "5-Day Weather Forecast with Predictions",
             "Emergency Hotlines Management",
@@ -270,6 +302,20 @@ async def startup_event():
         SystemSettingsService.initialize_table()
     except Exception:
         logger.exception("Failed to initialize system settings table at startup")
+
+    # Initialize vulnerability profiles table
+    try:
+        from app.services.vulnerability_resolver import VulnerabilityResolver
+        VulnerabilityResolver.ensure_table()
+    except Exception:
+        logger.exception("Failed to initialize vulnerability profiles table")
+
+    # Initialize disaster monitor (creates active_disasters table)
+    try:
+        from app.services.disaster_monitor import get_disaster_monitor
+        get_disaster_monitor()
+    except Exception:
+        logger.exception("Failed to initialize disaster monitor")
     
     print("\n" + "="*80)
     print("🌊 HYDROMET WEATHER & ALERT SYSTEM API")

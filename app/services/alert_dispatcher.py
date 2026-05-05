@@ -526,6 +526,142 @@ class AlertDispatcher:
         
         return result
 
+    def dispatch_localized_alerts(
+        self,
+        weather_data: Dict[str, Any],
+        location: str = "San Pedro, Laguna",
+    ) -> Dict[str, Any]:
+        """
+        Dispatch alerts using per-barangay vulnerability thresholds.
+
+        1. Evaluates current weather against each barangay's thresholds
+        2. Groups recipients by barangay
+        3. Sends alerts to high-priority barangays first
+        4. Only alerts barangays whose thresholds are exceeded
+
+        Args:
+            weather_data: Current weather data dict (rain_1h, feels_like, wind_speed)
+            location: City-level location name for message context
+
+        Returns:
+            Dispatch summary with per-barangay results
+        """
+        from app.services.vulnerability_resolver import VulnerabilityResolver
+
+        logger.info("Starting localized alert dispatch")
+
+        assessments = VulnerabilityResolver.evaluate_all_barangays(weather_data)
+
+        triggered = [a for a in assessments if a["hazards_triggered"]]
+
+        if not triggered:
+            logger.info("No barangay thresholds exceeded — skipping dispatch")
+            return {
+                "success": True,
+                "dispatch_mode": "localized",
+                "total_barangays_evaluated": len(assessments),
+                "barangays_triggered": 0,
+                "alerts_sent": 0,
+            }
+
+        logger.info(
+            f"{len(triggered)}/{len(assessments)} barangay(s) triggered: "
+            + ", ".join(f"{a['barangay_name']}({a['risk_level']})" for a in triggered)
+        )
+
+        total_sent = 0
+        total_failed = 0
+        barangay_results = []
+
+        for assessment in triggered:
+            brgy_name = assessment["barangay_name"]
+            hazards = assessment["hazards_triggered"]
+            risk_level = assessment["risk_level"]
+
+            # Get users in this barangay
+            recipients = VulnerabilityResolver.get_users_in_barangay(brgy_name)
+
+            if not recipients:
+                logger.debug(f"No verified users in {brgy_name} — skipping")
+                barangay_results.append({
+                    "barangay": brgy_name,
+                    "risk_level": risk_level,
+                    "hazards": hazards,
+                    "recipients": 0,
+                    "sent": 0,
+                })
+                continue
+
+            # Pick the highest-priority hazard for the alert message
+            top_hazard = hazards[0] if hazards else "weather"
+            probability = 0.8  # Default high prob for threshold-based alerts
+
+            # Dispatch to this barangay's users
+            phone_numbers = [
+                u["phone_number"] for u in recipients if u.get("phone_number")
+            ]
+
+            if phone_numbers:
+                send_results = self.sms_service.send_hazard_alert(
+                    phone_numbers=phone_numbers,
+                    hazard=top_hazard,
+                    horizon=12,  # Immediate / 12h
+                    probability=probability,
+                    location=f"Brgy. {brgy_name}, {location}",
+                )
+                sent = send_results.get("success", 0)
+                failed = send_results.get("failed", 0)
+            else:
+                sent = 0
+                failed = 0
+
+            # Also send emails
+            for user in recipients:
+                email = user.get("email")
+                if email:
+                    try:
+                        EmailService.send_hazard_alert_email(
+                            recipient_email=email,
+                            hazard_name=top_hazard.replace("_", " ").title(),
+                            horizon=12,
+                            probability=probability,
+                            safety_tips=[
+                                "Monitor local news for updates",
+                                "Prepare emergency supplies",
+                                "Follow evacuation orders if issued",
+                            ],
+                        )
+                    except Exception:
+                        pass  # Best-effort email
+
+            total_sent += sent
+            total_failed += failed
+
+            barangay_results.append({
+                "barangay": brgy_name,
+                "risk_level": risk_level,
+                "hazards": hazards,
+                "priority_rank": assessment["alert_priority_rank"],
+                "recipients": len(recipients),
+                "sent": sent,
+                "failed": failed,
+            })
+
+            logger.info(
+                f"  ✓ {brgy_name}: {sent}/{len(recipients)} alerts sent "
+                f"(hazards={hazards}, risk={risk_level})"
+            )
+
+        return {
+            "success": True,
+            "dispatch_mode": "localized",
+            "total_barangays_evaluated": len(assessments),
+            "barangays_triggered": len(triggered),
+            "total_sent": total_sent,
+            "total_failed": total_failed,
+            "barangay_results": barangay_results,
+        }
+
 
 # Singleton instance
 _alert_dispatcher = None

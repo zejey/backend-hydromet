@@ -1,11 +1,18 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Query
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 import uuid
 
 from app.database import get_db_cursor
 from app.services.system_logs_service import SystemLogsService
+from app.services.vulnerability_resolver import VulnerabilityResolver
+from app.models.barangay_vulnerability import (
+    BarangayVulnerabilityCreate,
+    BarangayVulnerabilityUpdate,
+    BarangayVulnerability,
+    BarangayRiskAssessment,
+)
 
 router = APIRouter(prefix="/api/barangays", tags=["Barangays"])
 
@@ -185,3 +192,158 @@ async def update_barangay(barangay_id: str, payload: BarangayUpdate):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Could not update barangay: {str(e)}",
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Vulnerability Profile Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@router.get("/{barangay_id}/vulnerability")
+async def get_vulnerability_profile(barangay_id: str):
+    """Get the vulnerability profile for a specific barangay."""
+    try:
+        profile = VulnerabilityResolver._get_profile(barangay_id)
+        if not profile:
+            raise HTTPException(
+                status_code=404,
+                detail="No vulnerability profile found for this barangay. "
+                       "Create one via PUT /api/barangays/{id}/vulnerability",
+            )
+        return {"success": True, "vulnerability": profile}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{barangay_id}/vulnerability")
+async def upsert_vulnerability_profile(
+    barangay_id: str, payload: BarangayVulnerabilityCreate
+):
+    """
+    Create or update the vulnerability profile for a barangay.
+
+    Example: Set Barangay Landayan as high-flood-risk with 2mm rain threshold:
+    ```json
+    {
+        "flood_susceptibility": "high",
+        "flood_rain_threshold_mm": 2.0,
+        "near_waterway": true,
+        "alert_priority_rank": 10
+    }
+    ```
+    """
+    # Verify barangay exists
+    try:
+        with get_db_cursor() as cur:
+            cur.execute("SELECT id FROM barangays WHERE id = %s", (barangay_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Barangay not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    try:
+        result = VulnerabilityResolver.upsert_profile(
+            barangay_id, payload.model_dump(exclude_none=True)
+        )
+
+        SystemLogsService.create_log(
+            action="Vulnerability Profile Updated",
+            status="Success",
+            details=f"Updated vulnerability profile for barangay {barangay_id}",
+            user="System Admin",
+            role="admin",
+        )
+
+        return {"success": True, "vulnerability": result}
+    except Exception as e:
+        SystemLogsService.create_log(
+            action="Vulnerability Profile Updated",
+            status="Failed",
+            details=f"Failed for barangay {barangay_id}: {type(e).__name__}",
+            user="System Admin",
+            role="admin",
+        )
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/{barangay_id}/vulnerability")
+async def patch_vulnerability_profile(
+    barangay_id: str, payload: BarangayVulnerabilityUpdate
+):
+    """
+    Partially update specific vulnerability fields for a barangay.
+    Only the provided fields will be updated.
+    """
+    update_data = payload.model_dump(exclude_none=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    try:
+        result = VulnerabilityResolver.upsert_profile(barangay_id, update_data)
+        return {"success": True, "vulnerability": result}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/at-risk", response_model=None)
+async def get_barangays_at_risk(
+    hazard: Optional[str] = Query(
+        None, description="Filter by hazard type: heavy_rain, heat_stress, severe_storm"
+    ),
+):
+    """
+    List all barangays ordered by vulnerability (most at-risk first).
+    Optionally filter to barangays susceptible to a specific hazard type.
+    """
+    try:
+        barangays = VulnerabilityResolver.get_priority_ordered_barangays(hazard)
+        return {
+            "success": True,
+            "count": len(barangays),
+            "barangays": barangays,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/evaluate-risk", response_model=None)
+async def evaluate_all_barangay_risk(weather_data: Dict[str, Any]):
+    """
+    Evaluate current weather conditions against ALL barangay thresholds.
+
+    Send weather data and receive a list of which barangays are at risk.
+    Results are sorted by priority (most vulnerable triggered barangays first).
+
+    Example request body:
+    ```json
+    {
+        "rain_1h": 3.0,
+        "feels_like": 35.0,
+        "wind_speed": 8.0
+    }
+    ```
+
+    In this example, Barangay Landayan (threshold 2mm) would be triggered,
+    but other barangays with 10mm threshold would not.
+    """
+    try:
+        results = VulnerabilityResolver.evaluate_all_barangays(weather_data)
+
+        triggered = [r for r in results if r["hazards_triggered"]]
+        safe = [r for r in results if not r["hazards_triggered"]]
+
+        return {
+            "success": True,
+            "total_barangays": len(results),
+            "triggered_count": len(triggered),
+            "safe_count": len(safe),
+            "triggered_barangays": triggered,
+            "safe_barangays": safe,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
