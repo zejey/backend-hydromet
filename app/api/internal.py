@@ -62,6 +62,14 @@ async def collect_openweather(
     Returns a summary of the inserted/updated observation.
     """
     _verify_token(x_internal_token)
+
+    from app.config import Config
+    if not Config.OPENWEATHER_COLLECTOR_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="OpenWeather collector is disabled (OPENWEATHER_COLLECTOR_ENABLED=false)",
+        )
+
     try:
         summary = run_collection()
         logger.info(f"OpenWeather collection successful: dt={summary['dt']}")

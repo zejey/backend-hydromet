@@ -18,7 +18,8 @@ class Config:
     OPENWEATHER_LAT = float(os.getenv("OPENWEATHER_LAT", "14.3597"))
     OPENWEATHER_LON = float(os.getenv("OPENWEATHER_LON", "121.0583"))
     OPENWEATHER_BASE_URL = os.getenv("OPENWEATHER_BASE_URL", "https://api.openweathermap.org/data/2.5")
-    
+    OPENWEATHER_COLLECTOR_ENABLED = os.getenv("OPENWEATHER_COLLECTOR_ENABLED", "false").lower() == "true"
+
     DB_NAME = os.getenv("PGDATABASE") or os.getenv("DB_NAME")
     DB_USER = os.getenv("PGUSER") or os.getenv("DB_USER", "postgres")
     DB_PASSWORD = os.getenv("PGPASSWORD") or os.getenv("DB_PASSWORD")
